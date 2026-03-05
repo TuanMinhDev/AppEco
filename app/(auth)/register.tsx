@@ -1,13 +1,191 @@
+import { useRegister } from '@/api/auth/auth.api';
+import { IRegister } from '@/api/auth/auth.type';
+import { AppInput } from '@/components/app-input';
 import { router } from 'expo-router';
 import React from 'react';
-import { Button, Text, View } from 'react-native';
+import { useForm } from 'react-hook-form';
+import { Alert, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+
+type RegisterForm = IRegister & { confirmPassword: string };
 
 export default function RegisterScreen() {
+  const {
+    control,
+    handleSubmit,
+    watch,
+  } = useForm<RegisterForm>({
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      phoneNumber: '',
+    },
+  });
+
+  const registerMutation = useRegister({
+    onSuccess: () => {
+      Alert.alert('Thành công', 'Đăng ký thành công! Vui lòng đăng nhập.', [
+        { text: 'OK', onPress: () => router.replace('/(auth)') },
+      ]);
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+      Alert.alert('Lỗi', message);
+    },
+  });
+
+  const onSubmit = (data: RegisterForm) => {
+    const { confirmPassword, ...payload } = data;
+    registerMutation.mutate(payload);
+  };
+
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-      <Text style={{ fontSize: 18, fontWeight: '600' }}>Register</Text>
-      <Button title="Sign Up (demo)" onPress={() => router.replace('/(tabs)')} />
-      <Button title="Back to Login" onPress={() => router.back()} />
+    <View style={styles.container}>
+      <Text style={styles.title}>Đăng ký</Text>
+
+      <View style={styles.form}>
+        <AppInput
+          label="Họ và tên"
+          name="name"
+          control={control}
+          rules={{ required: 'Vui lòng nhập họ và tên' }}
+          placeholder="Nhập họ và tên"
+          autoCorrect={false}
+          returnKeyType="next"
+        />
+
+        <AppInput
+          label="Email"
+          name="email"
+          control={control}
+          rules={{
+            required: 'Vui lòng nhập email',
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              message: 'Email không hợp lệ',
+            },
+          }}
+          placeholder="Nhập email"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          returnKeyType="next"
+        />
+
+        <AppInput
+          label="Số điện thoại"
+          name="phoneNumber"
+          control={control}
+          rules={{
+            required: 'Vui lòng nhập số điện thoại',
+            pattern: {
+              value: /^[0-9]{9,11}$/,
+              message: 'Số điện thoại không hợp lệ',
+            },
+          }}
+          placeholder="Nhập số điện thoại"
+          keyboardType="phone-pad"
+          returnKeyType="next"
+        />
+
+
+
+        <AppInput
+          label="Mật khẩu"
+          name="password"
+          control={control}
+          rules={{
+            required: 'Vui lòng nhập mật khẩu',
+            minLength: { value: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
+          }}
+          placeholder="Nhập mật khẩu"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="next"
+        />
+
+        <AppInput
+          label="Xác nhận mật khẩu"
+          name="confirmPassword"
+          control={control}
+          rules={{
+            required: 'Vui lòng xác nhận mật khẩu',
+            validate: (value: string) =>
+              value === watch('password') || 'Mật khẩu xác nhận không khớp',
+          }}
+          placeholder="Nhập lại mật khẩu"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+        />
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.button, styles.registerButton]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={registerMutation.isPending}
+          >
+            <Text style={styles.buttonText}>
+              {registerMutation.isPending ? 'Loading...' : 'Đăng ký'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.textRes}>
+            <TouchableOpacity
+              onPress={() => router.replace('/(auth)/login')}
+              disabled={registerMutation.isPending}
+            >
+              <Text style={{ color: '#000000', fontSize: 15 }}>Bạn đã có tài khoản chưa? <Text style={{ color: '#fbc414', fontSize: 15 }}>Đăng nhập</Text></Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    gap: 16,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    paddingTop: '18%',
+  },
+  title: {
+    fontSize: 40,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  form: {
+    width: '100%',
+    gap: 30,
+    marginTop: '10%',
+  },
+  actions: {
+    marginTop: '10%',
+  },
+  button: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 50,
+    alignItems: 'center',
+  },
+  registerButton: {
+    backgroundColor: '#fbc414',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  textRes: {
+    marginTop: '10%',
+    alignItems: 'center',
+  },
+});

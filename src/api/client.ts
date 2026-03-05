@@ -1,13 +1,15 @@
 import axios from 'axios';
 
+const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+
 const getBaseUrl = () => {
-  // Web: localhost ok
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (envUrl) return envUrl;
+
   if (typeof window !== 'undefined') return 'http://localhost:3000';
 
-  // Android emulator: localhost của máy dev là 10.0.2.2
-  // iOS simulator: localhost ok
-  // Nếu chạy trên thiết bị thật: cần thay bằng IP LAN của máy dev (vd: http://192.168.1.10:3000)
-  return 'http://192.168.21.103:3000';
+  // Fallback for native when env is missing.
+  return 'http://10.0.2.2:3000';
 };
 
 export const apiClient = axios.create({
@@ -15,12 +17,26 @@ export const apiClient = axios.create({
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
+  withCredentials: false, // Tắt credentials nếu backend chưa hỗ trợ
 });
 
 apiClient.interceptors.request.use(
   async (config) => {
-    // TODO: Gắn token từ storage (AsyncStorage, SecureStore, ...) nếu có
+    try {
+      // Lấy token từ AsyncStorage
+      const token = await AsyncStorage.getItem('token');
+      console.log('Token from AsyncStorage:', token);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log('Authorization header set:', config.headers.Authorization);
+      } else {
+        console.log('No token found in AsyncStorage');
+      }
+    } catch (error) {
+      console.log('Error getting token:', error);
+    }
     return config;
   },
   (error) => Promise.reject(error),

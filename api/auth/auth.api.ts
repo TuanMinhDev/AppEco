@@ -5,12 +5,15 @@ import { apiClient } from '@/src/api/client';
 import { store } from '@/src/store';
 import { setTokens as setReduxTokens } from '@/src/store/slices/authSlice';
 
-import { IAuth } from './auth.type';
+import { IAuth, IRegister } from './auth.type';
+
+const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 
 const URI = '/api/v1/user';
 
 export const authUri = {
   login: `${URI}/login`,
+  register: `${URI}/register`,
 };
 
 type LoginResponse = {
@@ -26,6 +29,9 @@ export const authApis = {
   login: async (payload: IAuth) => {
     return apiClient.post<LoginResponse>(authUri.login, payload).then((r) => r.data);
   },
+  register: async (payload: IRegister) => {
+    return apiClient.post<unknown>(authUri.register, payload).then((r) => r.data);
+  },
 };
 
 export const useLogin = (props?: {
@@ -37,12 +43,22 @@ export const useLogin = (props?: {
 
   return useMutation({
     mutationFn: (payload: IAuth) => authApis.login(payload),
-    onSuccess: (response: LoginResponse, variables) => {
+    onSuccess: async (response: LoginResponse, variables) => {
       const token = response?.data?.token || response?.token;
       const refresh = response?.data?.refresh || response?.refresh;
 
       if (token) {
+        // Lưu vào Redux
         store.dispatch(setReduxTokens({ accessToken: token, refreshToken: refresh ?? null }));
+
+        // Lưu vào AsyncStorage
+        try {
+          await AsyncStorage.setItem('token', token);
+          if (refresh) {
+            await AsyncStorage.setItem('refreshToken', refresh);
+          }
+        } catch (error) {
+        }
       }
 
       void queryClient.refetchQueries({
@@ -51,6 +67,19 @@ export const useLogin = (props?: {
 
       onSuccess?.(response, variables);
     },
+    onError,
+  });
+};
+
+export const useRegister = (props?: {
+  onSuccess?: (response: unknown, data: IRegister) => void;
+  onError?: (error: AxiosError<unknown>) => void;
+}) => {
+  const { onSuccess, onError } = props ?? {};
+
+  return useMutation({
+    mutationFn: (payload: IRegister) => authApis.register(payload),
+    onSuccess,
     onError,
   });
 };

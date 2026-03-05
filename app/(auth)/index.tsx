@@ -1,98 +1,25 @@
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
-
-import { useLogin } from '@/api/auth/auth.api';
-import { AppInput } from '@/components/app-input';
-
 export default function LoginScreen() {
-  const [account, setAccount] = useState('');
-  const [password, setPassword] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-
-  const loginMutation = useLogin({
-    onSuccess: () => {
-      router.replace('/(tabs)');
-    },
-  });
-
-  const accountError = useMemo(() => {
-    if (!submitted) return undefined;
-    if (!account.trim()) return 'Vui lòng nhập tài khoản';
-    return undefined;
-  }, [account, submitted]);
-
-  const passwordError = useMemo(() => {
-    if (!submitted) return undefined;
-    if (!password) return 'Vui lòng nhập mật khẩu';
-    if (password.length < 6) return 'Mật khẩu tối thiểu 6 ký tự';
-    return undefined;
-  }, [password, submitted]);
-
-  const canSubmit = account.trim().length > 0 && password.length >= 6;
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Đăng nhập</Text>
-
-      <View style={styles.form}>
-        <AppInput
-          label="Tài khoản"
-          value={account}
-          onChangeText={setAccount}
-          placeholder="Nhập tài khoản"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          returnKeyType="next"
-          errorText={accountError}
-        />
-
-        <AppInput
-          label="Mật khẩu"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Nhập mật khẩu"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-          errorText={passwordError}
-        />
-
-        <View style={styles.actions}>
-          <Button
-            title={loginMutation.isPending ? 'Đang đăng nhập...' : 'Đăng nhập'}
-            disabled={loginMutation.isPending}
-            onPress={() => {
-              setSubmitted(true);
-              if (!canSubmit) return;
-
-              console.log('login payload', {
-                identifier: account,
-                password,
-              });
-
-              loginMutation.mutate({
-                identifier: account,
-                password,
-              });
-            }}
-          />
-
-          {loginMutation.isError && (
-            <Text style={styles.errorText}>
-              {(loginMutation.error as any)?.response?.data?.message || 'Đăng nhập thất bại'}
-            </Text>
-          )}
-
-          <Button
-            title="Đăng ký"
-            disabled={loginMutation.isPending}
-            onPress={() => router.push('/register')}
-          />
-        </View>
+      <View style={styles.topSection}>
+        <Image source={require('@/assets/images/logo.png')} style={styles.logo} />
+        <Text style={styles.textlogo}>FUSHION</Text>
+        <Text style={styles.textHello}>Xin chào!</Text>
       </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={[styles.button, styles.loginButton]} onPress={() => router.push('/login')}>
+          <Text style={styles.buttonText}>Đăng nhập</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.registerButton]} onPress={() => router.push('/register')}>
+          <Text style={styles.buttonTextRes}>Đăng ký</Text>
+        </TouchableOpacity>
+      </View>
+
     </View>
   );
 }
@@ -102,24 +29,65 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 40,
+    backgroundColor: '#ffffff',
+  },
+
+  topSection: {
+    alignItems: 'center',
+  },
+
+  logo: {
+    width: 180,
+    height: 180,
+    resizeMode: 'contain',
+    marginBottom: 10,
+  },
+
+  textlogo: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 40,
+    letterSpacing: 2,
+  },
+
+  buttonContainer: {
+    width: '90%',
     gap: 16,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  form: {
+
+  button: {
     width: '100%',
-    gap: 14,
+    paddingVertical: 16,
+    borderRadius: 50, // 👈 bo tròn
+    alignItems: 'center',
   },
-  actions: {
-    gap: 10,
+
+  loginButton: {
+    backgroundColor: '#fbc414',
   },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 4,
+
+  registerButton: {
+    backgroundColor: '#ffffff',
+    borderColor: '#fbc414',
+    borderWidth: 1,
+  },
+
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buttonTextRes : {
+    color: '#fbc414',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  textHello: {
+    fontSize: 24,
+    marginBottom: 50,
+    color: 'gray'
   },
 });
