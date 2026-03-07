@@ -1,10 +1,10 @@
 import { useListProduct } from '@/api/product/product.api';
 import { GetProductQuery } from '@/api/product/product.type';
 import { useGetCurrentUser } from '@/api/user/user.api';
-import { FontAwesome, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import {
     Animated,
@@ -26,23 +26,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 52) / 2;
 
-const CATEGORIES = [
-    { id: '1', label: 'Tất cả', icon: 'apps' as const },
-    { id: '2', label: 'Hot Sale', icon: 'fire' as const },
-    { id: '3', label: 'Mới nhất', icon: 'star-outline' as const },
-];
-
-const BANNERS = [
-    {
-        id: '1',
-        gradient: ['#11998e', '#38ef7d'] as const,
-        discount: '30%',
-        sub: 'Hàng mới về mỗi ngày',
-        code: 'FRESH30',
-        emoji: '🌿',
-    },
-];
-
 function formatPrice(price: number) {
     return price.toLocaleString('vi-VN') + 'đ';
 }
@@ -59,7 +42,6 @@ function ProductCard({ product }: { product: any }) {
     const onPress = () => {
         router.push(`/product/${product._id}`);
     };
-
 
     const originalPrice = product.variants?.[0]?.price || 0;
     const salePrice = product.sale ? originalPrice * (1 - product.sale / 100) : null;
@@ -106,15 +88,15 @@ function ProductCard({ product }: { product: any }) {
     );
 }
 
-export default function HomeScreen() {
+export default function SearchScreen() {
+    const { q, sale } = useLocalSearchParams<{ q?: string; sale?: string }>();
     const methods = useForm<GetProductQuery>({
         defaultValues: {
-            name: '',
+            name: q || '',
             pageNumber: 1,
-            pageSize: 10,
+            pageSize: 20,
             minPrice: 0,
             maxPrice: 100000000,
-            
         },
     });
     const { control, setValue, getValues } = methods;
@@ -122,44 +104,53 @@ export default function HomeScreen() {
         control,
         name: ['name', 'pageNumber', 'pageSize', 'minPrice', 'maxPrice'],
     });
-    const [searchText, setSearchText] = useState('');
-    const [activeCat, setActiveCat] = useState('1');
+    const [searchText, setSearchText] = useState(q || '');
     const [showFilterModal, setShowFilterModal] = useState(false);
     const [tempMinPrice, setTempMinPrice] = useState('');
     const [tempMaxPrice, setTempMaxPrice] = useState('');
+    const [saleFilter, setSaleFilter] = useState<number | null>(sale ? parseInt(sale) : null);
 
     const { data: currentUser } = useGetCurrentUser();
     const { data: dataProduct } = useListProduct({ name, pageNumber, pageSize, minPrice, maxPrice });
     const products = dataProduct?.data?.products ?? [];
-    
-    // Filter products based on active category
-    const getFilteredProducts = () => {
-        switch (activeCat) {
-            case '2': // Hot Sale
-                return products.filter((p: any) => p.sale);
-            case '3': // Mới nhất
-                return products.slice(0, 10);
-            default: // Tất cả
-                return products;
+
+    // Filter products based on sale filter
+    const filteredProducts = saleFilter !== null 
+        ? products.filter((p: any) => p.sale === saleFilter)
+        : products;
+
+    useEffect(() => {
+        if (q) {
+            setSearchText(q);
+            setValue('name', q);
         }
-    };
-    
-    const filteredProducts = getFilteredProducts();
+    }, [q, setValue]);
+
+    useEffect(() => {
+        // Nếu không có từ khóa tìm kiếm và không có sale filter, quay về trang home
+        if (!searchText.trim() && saleFilter === null) {
+            router.replace('/');
+        }
+    }, [searchText, saleFilter]);
 
     const handleSearch = (text: string) => {
         setSearchText(text);
-        if (text.trim()) {
-            // Nếu có từ khóa, chuyển đến trang tìm kiếm
-            router.push(`/(tabs)/search?q=${encodeURIComponent(text.trim())}`);
-        } else {
-            // Nếu không có từ khóa, cập nhật form để hiển thị tất cả sản phẩm
-            setValue('name', '');
-        }
+        setValue('name', text);
     };
 
     const handleSearchSubmit = () => {
         if (searchText.trim()) {
-            router.push(`/(tabs)/search?q=${encodeURIComponent(searchText.trim())}`);
+            // Cập nhật URL với từ khóa tìm kiếm mới
+            router.replace(`/(tabs)/search?q=${encodeURIComponent(searchText.trim())}`);
+        }
+    };
+
+    const clearSaleFilter = () => {
+        setSaleFilter(null);
+        if (searchText.trim()) {
+            router.replace(`/(tabs)/search?q=${encodeURIComponent(searchText.trim())}`);
+        } else {
+            router.replace('/');
         }
     };
 
@@ -185,13 +176,6 @@ export default function HomeScreen() {
         setShowFilterModal(false);
     };
 
-    const handleBannerPress = (discount: string) => {
-        // Extract percentage number from discount string (e.g., "50%" -> 50)
-        const percentage = parseInt(discount.replace('%', ''));
-        // Chuyển đến trang search với filter theo sale
-        router.push(`/(tabs)/search?sale=${percentage}`);
-    };
-
     return (
         <FormProvider {...methods}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -203,25 +187,9 @@ export default function HomeScreen() {
                     >
                         {/* ── Header ── */}
                         <View style={styles.header}>
-                            <View>
-                                <Text style={styles.greetingSmall}>Chào mừng trở lại 👋</Text>
-                                <Text style={styles.greetingName} numberOfLines={1}>
-                                    {currentUser?.data?.name ?? 'Khách hàng'}
-                                </Text>
-                            </View>
-                            <View style={styles.headerRight}>
-                                <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8}>
-                                    <Ionicons name="notifications-outline" size={22} color="#fff" />
-                                    <View style={styles.notifDot} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.avatarCircle} activeOpacity={0.8}>
-                                    <FontAwesome name="user" size={20} color="#FFD700" />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* ── Search ── */}
-                        <View style={styles.searchRow}>
+                            <TouchableOpacity style={styles.backBtn} activeOpacity={0.8} onPress={() => router.back()}>
+                                <Ionicons name="arrow-back" size={24} color="#fff" />
+                            </TouchableOpacity>
                             <View style={styles.searchBox}>
                                 <Ionicons name="search" size={18} color="#aaa" style={{ marginRight: 8 }} />
                                 <TextInput
@@ -232,6 +200,7 @@ export default function HomeScreen() {
                                     onChangeText={handleSearch}
                                     onSubmitEditing={handleSearchSubmit}
                                     returnKeyType="search"
+                                    autoFocus={true}
                                 />
                                 {searchText.length > 0 && (
                                     <TouchableOpacity onPress={() => handleSearch('')}>
@@ -244,68 +213,55 @@ export default function HomeScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* ── Categories ── */}
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.catList}
-                        >
-                            {CATEGORIES.map((cat) => {
-                                const active = cat.id === activeCat;
-                                return (
-                                    <TouchableOpacity
-                                        key={cat.id}
-                                        style={[styles.catChip, active && styles.catChipActive]}
-                                        activeOpacity={0.8}
-                                        onPress={() => setActiveCat(cat.id)}
-                                    >
-                                        <MaterialCommunityIcons
-                                            name={cat.icon}
-                                            size={16}
-                                            color={active ? '#1a1a2e' : '#ccc'}
-                                            style={{ marginRight: 5 }}
-                                        />
-                                        <Text style={[styles.catLabel, active && styles.catLabelActive]}>
-                                            {cat.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-
-                     
-                        {/* ── Stats Row ── */}
-                        <View style={styles.statsRow}>
-                            {[
-                                { label: 'Sản phẩm', value: products.length.toString(), icon: 'cube-outline' },
-                                { label: 'Flash Sale', value: `${products.filter((p: any) => p.sale).length}`, icon: 'flash-outline' },
-                            ].map((s, i) => (
-                                <View key={i} style={styles.statCard}>
-                                    <Ionicons name={s.icon as any} size={22} color="#FFD700" />
-                                    <Text style={styles.statValue}>{s.value}</Text>
-                                    <Text style={styles.statLabel}>{s.label}</Text>
-                                </View>
-                            ))}
-                        </View>
-
-                        {/* ── Products Section ── */}
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>
-                                🛍 Sản phẩm nổi bật
+                        {/* ── Search Results Header ── */}
+                        <View style={styles.resultsHeader}>
+                            <Text style={styles.resultsTitle}>
+                                {saleFilter !== null 
+                                    ? `Sản phẩm giảm ${saleFilter}%`
+                                    : searchText.trim() 
+                                        ? `Kết quả tìm kiếm: "${searchText}"`
+                                        : 'Tìm kiếm sản phẩm'
+                                }
                             </Text>
-                            <TouchableOpacity>
-                                <Text style={styles.seeAll}>Xem tất cả →</Text>
-                            </TouchableOpacity>
+                            <Text style={styles.resultsCount}>
+                                {filteredProducts.length} sản phẩm
+                            </Text>
+                            {saleFilter !== null && (
+                                <TouchableOpacity style={styles.clearSaleFilterBtn} onPress={clearSaleFilter}>
+                                    <Text style={styles.clearSaleFilterText}>Xóa bộ lọc</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
+                        {/* ── Products Grid ── */}
                         {filteredProducts.length === 0 ? (
                             <View style={styles.emptyState}>
-                                <MaterialCommunityIcons name="shopping-outline" size={60} color="rgba(255,255,255,0.2)" />
-                                <Text style={styles.emptyText}>Không tìm thấy sản phẩm</Text>
+                                <MaterialCommunityIcons name="shopping-outline" size={80} color="rgba(255,255,255,0.2)" />
+                                <Text style={styles.emptyText}>
+                                    {saleFilter !== null 
+                                        ? `Không tìm thấy sản phẩm nào giảm ${saleFilter}%`
+                                        : searchText.trim() 
+                                            ? 'Không tìm thấy sản phẩm nào'
+                                            : 'Nhập từ khóa để tìm kiếm'
+                                    }
+                                </Text>
+                                {(searchText.trim() || saleFilter !== null) && (
+                                    <TouchableOpacity style={styles.clearSearchBtn} onPress={() => {
+                                        if (saleFilter !== null) {
+                                            clearSaleFilter();
+                                        } else {
+                                            handleSearch('');
+                                        }
+                                    }}>
+                                        <Text style={styles.clearSearchText}>
+                                            {saleFilter !== null ? 'Xóa bộ lọc' : 'Xóa tìm kiếm'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         ) : (
                             <View style={styles.productsGrid}>
-                                {filteredProducts.slice(0, 6).map((product: any) => (
+                                {filteredProducts.map((product: any) => (
                                     <ProductCard 
                                         key={product._id} 
                                         product={product} 
@@ -383,63 +339,17 @@ const styles = StyleSheet.create({
     // ── Header ──
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: 12,
-        marginBottom: 20,
-    },
-    greetingSmall: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.6)',
-        marginBottom: 2,
-    },
-    greetingName: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#fff',
-        maxWidth: 220,
-    },
-    headerRight: {
-        flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+        marginBottom: 20,
     },
-    iconBtn: {
+    backBtn: {
         width: 42,
         height: 42,
         borderRadius: 21,
         backgroundColor: 'rgba(255,255,255,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    notifDot: {
-        position: 'absolute',
-        top: 9,
-        right: 9,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#FF6B6B',
-        borderWidth: 1.5,
-        borderColor: '#1a1a2e',
-    },
-    avatarCircle: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: 'rgba(255,215,0,0.15)',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,215,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    // ── Search ──
-    searchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 16,
     },
     searchBox: {
         flex: 1,
@@ -458,153 +368,41 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     filterBtn: {
-        width: 46,
-        height: 46,
+        width: 42,
+        height: 42,
         borderRadius: 14,
         backgroundColor: '#FFD700',
         justifyContent: 'center',
         alignItems: 'center',
     },
 
-    // ── Categories ──
-    catList: {
-        flexDirection: 'row',
-        gap: 10,
-        paddingBottom: 4,
+    // ── Results Header ──
+    resultsHeader: {
         marginBottom: 16,
     },
-    catChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 24,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-    },
-    catChipActive: {
-        backgroundColor: '#FFD700',
-        borderColor: '#FFD700',
-    },
-    catLabel: {
-        fontSize: 13,
-        color: '#ccc',
-        fontWeight: '500',
-    },
-    catLabelActive: {
-        color: '#1a1a2e',
+    resultsTitle: {
+        fontSize: 18,
         fontWeight: '700',
-    },
-
-    // ── Banners ──
-    bannerList: {
-        gap: 14,
-        paddingBottom: 4,
-        marginBottom: 20,
-        paddingRight: 20,
-    },
-    bannerCard: {
-        width: SCREEN_WIDTH - 48,
-        borderRadius: 22,
-        padding: 24,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        overflow: 'hidden',
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.3,
-                shadowRadius: 16,
-            },
-            android: { elevation: 10 },
-        }),
-    },
-    bannerEmoji: {
-        fontSize: 32,
-        marginBottom: 6,
-    },
-    bannerDiscount: {
-        fontSize: 30,
-        fontWeight: '900',
         color: '#fff',
-        letterSpacing: 1,
+        marginBottom: 4,
     },
-    bannerSub: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.85)',
-        marginTop: 2,
+    resultsCount: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.6)',
         marginBottom: 8,
     },
-    codeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    codeText: {
-        fontSize: 11,
-        color: 'rgba(255,255,255,0.7)',
-        fontStyle: 'italic',
-    },
-    bannerBtn: {
-        backgroundColor: '#fff',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 30,
-        alignSelf: 'flex-end',
-    },
-    bannerBtnText: {
-        color: '#1a1a2e',
-        fontWeight: '700',
-        fontSize: 13,
-    },
-
-    // ── Stats ──
-    statsRow: {
-        flexDirection: 'row',
-        gap: 10,
-        marginBottom: 24,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.07)',
-        borderRadius: 16,
-        paddingVertical: 14,
-        alignItems: 'center',
+    clearSaleFilterBtn: {
+        backgroundColor: 'rgba(255,215,0,0.2)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: '#FFD700',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        alignSelf: 'flex-start',
     },
-    statValue: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: '#fff',
-        marginTop: 6,
-    },
-    statLabel: {
-        fontSize: 11,
-        color: 'rgba(255,255,255,0.5)',
-        marginTop: 2,
-    },
-
-    // ── Section Header ──
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    seeAll: {
-        fontSize: 13,
+    clearSaleFilterText: {
         color: '#FFD700',
+        fontSize: 12,
         fontWeight: '600',
     },
 
@@ -702,12 +500,26 @@ const styles = StyleSheet.create({
     // ── Empty State ──
     emptyState: {
         alignItems: 'center',
-        paddingVertical: 48,
-        gap: 12,
+        paddingVertical: 60,
+        gap: 16,
     },
     emptyText: {
         color: 'rgba(255,255,255,0.35)',
-        fontSize: 15,
+        fontSize: 16,
+        textAlign: 'center',
+    },
+    clearSearchBtn: {
+        backgroundColor: 'rgba(255,215,0,0.2)',
+        borderWidth: 1,
+        borderColor: '#FFD700',
+        borderRadius: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+    },
+    clearSearchText: {
+        color: '#FFD700',
+        fontSize: 14,
+        fontWeight: '600',
     },
 
     // ── Filter Modal ──

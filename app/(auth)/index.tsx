@@ -1,30 +1,41 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function LoginScreen() {
   return (
-    <View style={styles.container}>
-      <View style={styles.topSection}>
-        <Image source={require('@/assets/images/logo.png')} style={styles.logo} />
-        <Text style={styles.textlogo}>FUSHION</Text>
-        <Text style={styles.textHello}>Xin chào!</Text>
-      </View>
+    <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradient}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.container}>
+          <View style={styles.topSection}>
+            <Image source={require('@/assets/images/logo.png')} style={styles.logo} />
+            <Text style={styles.textlogo}>FUSHION</Text>
+            <Text style={styles.textHello}>Xin chào!</Text>
+          </View>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={[styles.button, styles.loginButton]} onPress={() => router.push('/login')}>
-          <Text style={styles.buttonText}>Đăng nhập</Text>
-        </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={[styles.button, styles.loginButton]} onPress={() => router.push('/login')}>
+              <Text style={styles.buttonText}>Đăng nhập</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, styles.registerButton]} onPress={() => router.push('/register')}>
-          <Text style={styles.buttonTextRes}>Đăng ký</Text>
-        </TouchableOpacity>
-      </View>
-
-    </View>
+            <TouchableOpacity style={[styles.button, styles.registerButton]} onPress={() => router.push('/register')}>
+              <Text style={styles.buttonTextRes}>Đăng ký</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 20,
@@ -32,7 +43,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: 40,
-    backgroundColor: '#ffffff',
   },
 
   topSection: {
@@ -51,6 +61,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 40,
     letterSpacing: 2,
+    color: '#fff',
   },
 
   buttonContainer: {
@@ -70,7 +81,7 @@ const styles = StyleSheet.create({
   },
 
   registerButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderColor: '#fbc414',
     borderWidth: 1,
   },
@@ -88,6 +99,6 @@ const styles = StyleSheet.create({
   textHello: {
     fontSize: 24,
     marginBottom: 50,
-    color: 'gray'
+    color: 'rgba(255,255,255,0.7)'
   },
 });

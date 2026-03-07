@@ -1,31 +1,35 @@
+import { useCreateOrder } from '@/api/order/order.api';
+import type { Order } from '@/api/order/order.type';
+import { useGetCurrentUser } from '@/api/user/user.api';
 import { useAppDispatch, useAppSelector } from '@/src/store';
 import {
-    clearCheckout,
-    selectCheckoutItems,
-    selectCheckoutTotals,
-    selectPaymentMethod,
-    selectShippingInfo,
-    setError,
-    setNotes,
-    setPaymentMethod,
-    setProcessing,
-    setShippingInfo,
+  clearCheckout,
+  selectCheckoutItems,
+  selectCheckoutTotals,
+  selectPaymentMethod,
+  selectShippingInfo,
+  setError,
+  setNotes,
+  setPaymentMethod,
+  setProcessing,
+  setShippingInfo,
 } from '@/src/store/slices/checkoutSlice';
+import { addNotification, addOrder } from '@/src/store/slices/ordersSlice';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,29 +49,22 @@ export default function CheckoutScreen() {
   const totals = useAppSelector(selectCheckoutTotals);
   const shippingInfo = useAppSelector(selectShippingInfo);
   const paymentMethod = useAppSelector(selectPaymentMethod);
+  const notes = useAppSelector((state: any) => state.checkout.notes);
+  const { data: userData } = useGetCurrentUser();
+  const user = userData?.data;
 
-  const [expandedSection, setExpandedSection] = useState<'shipping' | 'payment' | null>('shipping');
-
-  const handleShippingInfoChange = (field: string, value: string) => {
-    dispatch(setShippingInfo({ [field]: value }));
-  };
-
-  const handlePaymentMethodSelect = (method: 'cod' | 'card' | 'bank_transfer') => {
-    dispatch(setPaymentMethod({ type: method }));
-  };
-
-  const handlePlaceOrder = async () => {
-    // Validate shipping info
-    if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
-      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin giao hàng');
-      return;
-    }
-
-    dispatch(setProcessing(true));
-    
-    try {
-      // Simulate order processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+  const createOrderMutation = useCreateOrder({
+    onSuccess: (order: Order) => {
+      // Save order to Redux
+      dispatch(addOrder(order));
+      
+      // Create notification
+      dispatch(addNotification({
+        type: 'order_success',
+        title: 'Đặt hàng thành công!',
+        message: `Đơn hàng #${order._id.slice(-8)} đã được xác nhận. Chúng tôi sẽ liên hệ với bạn sớm nhất.`,
+        data: { orderId: order._id }
+      }));
       
       Alert.alert(
         'Đặt hàng thành công!',
@@ -82,9 +79,107 @@ export default function CheckoutScreen() {
           },
         ]
       );
-    } catch (error) {
+    },
+    onError: (error: any) => {
       dispatch(setError('Có lỗi xảy ra khi đặt hàng'));
-      Alert.alert('Lỗi', 'Không thể đặt hàng. Vui lòng thử lại.');
+      
+      // Create more specific error notification
+      const errorMessage = error?.response?.data?.message || error?.message || 'Không thể đặt hàng. Vui lòng thử lại.';
+      
+      dispatch(addNotification({
+        type: 'order_cancelled',
+        title: 'Đặt hàng thất bại',
+        message: errorMessage,
+      }));
+      
+      Alert.alert('Lỗi', errorMessage);
+    },
+  });
+
+  const [expandedSection, setExpandedSection] = useState<'shipping' | 'payment' | null>('shipping');
+  const [showAddressAlert, setShowAddressAlert] = useState(false);
+
+  // Auto-fill user info only once when component loads and fields are empty
+  useEffect(() => {
+    if (user) {
+      const currentInfo = shippingInfo;
+      if (!currentInfo.fullName && !currentInfo.phone && !currentInfo.address) {
+        dispatch(setShippingInfo({
+          fullName: user.name,
+          phone: user.phoneNumber,
+          address: user.address || '',
+        }));
+      }
+    }
+  }, [user]);
+
+  // Check address separately
+  useEffect(() => {
+    if (user && (!user.address || user.address.trim() === '')) {
+      setShowAddressAlert(true);
+    }
+  }, [user]);
+
+  const handleAddressAlert = () => {
+    Alert.alert(
+      'Cập nhật địa chỉ',
+      'Bạn chưa có địa chỉ giao hàng. Vui lòng nhập địa chỉ để tiếp tục.',
+      [{ text: 'OK', onPress: () => setExpandedSection('shipping') }]
+    );
+    setShowAddressAlert(false);
+  };
+
+  useEffect(() => {
+    if (showAddressAlert) {
+      handleAddressAlert();
+    }
+  }, [showAddressAlert]);
+
+  const handleShippingInfoChange = (field: string, value: string) => {
+    dispatch(setShippingInfo({ [field]: value }));
+  };
+
+  const handlePaymentMethodSelect = (method: 'cod' | 'card' | 'bank_transfer') => {
+    dispatch(setPaymentMethod({ type: method }));
+  };
+
+  const handlePlaceOrder = async () => {
+    // Validate cart has items
+    if (items.length === 0) {
+      Alert.alert('Lỗi', 'Giỏ hàng của bạn đang trống. Vui lòng thêm sản phẩm trước khi đặt hàng.');
+      return;
+    }
+
+    // Validate shipping info
+    if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin giao hàng');
+      return;
+    }
+
+    dispatch(setProcessing(true));
+    
+    try {
+      // Prepare order data
+      const orderData = {
+        products: items.map(item => ({
+          productId: item.productId._id,
+          size: item.variant?.size || '',
+          color: item.variant?.color || '',
+          quantity: item.quantity,
+        })),
+        user: {
+          name: shippingInfo.fullName || '',
+          phone: shippingInfo.phone || '',
+          address: shippingInfo.address || '',
+        },
+        description: notes || undefined,
+      };
+
+      // Create order via API
+      await createOrderMutation.mutateAsync(orderData);
+      
+    } catch (error) {
+      console.error('Order creation error:', error);
     } finally {
       dispatch(setProcessing(false));
     }
@@ -197,29 +292,13 @@ export default function CheckoutScreen() {
                   />
                   
                   <TextInput
-                    style={styles.input}
-                    placeholder="Địa chỉ"
+                    style={[styles.input, styles.addressInput]}
+                    placeholder="Địa chỉ giao hàng"
                     placeholderTextColor="rgba(255,255,255,0.4)"
-                    value={shippingInfo.address || ''}
+                    value={shippingInfo.address ?? ''}
                     onChangeText={(value) => handleShippingInfoChange('address', value)}
+                    editable={true}
                   />
-                  
-                  <View style={styles.row}>
-                    <TextInput
-                      style={[styles.input, styles.halfInput]}
-                      placeholder="Thành phố"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      value={shippingInfo.city || ''}
-                      onChangeText={(value) => handleShippingInfoChange('city', value)}
-                    />
-                    <TextInput
-                      style={[styles.input, styles.halfInput]}
-                      placeholder="Quận/Huyện"
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      value={shippingInfo.district || ''}
-                      onChangeText={(value) => handleShippingInfoChange('district', value)}
-                    />
-                  </View>
                 </View>
               )}
             </View>
@@ -281,7 +360,7 @@ export default function CheckoutScreen() {
                 style={[styles.input, styles.textArea]}
                 placeholder="Nhập ghi chú cho đơn hàng (tùy chọn)"
                 placeholderTextColor="rgba(255,255,255,0.4)"
-                value={''}
+                value={notes}
                 onChangeText={(value) => dispatch(setNotes(value))}
                 multiline
                 numberOfLines={3}
@@ -323,7 +402,7 @@ export default function CheckoutScreen() {
               <TouchableOpacity 
                 style={styles.placeOrderBtn} 
                 onPress={handlePlaceOrder}
-                disabled={items.length === 0}
+                disabled={items.length === 0 || createOrderMutation.isPending}
               >
                 <LinearGradient
                   colors={['#FFD700', '#FFA500']}
@@ -503,13 +582,18 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
     color: '#fff',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 12,
+  },
+  addressInput: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   textArea: {
     height: 80,

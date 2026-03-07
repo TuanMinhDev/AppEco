@@ -36,14 +36,19 @@ export default function ProductDetailScreen() {
     const [activeImage, setActiveImage] = useState<number>(0);
     const [qty, setQty] = useState(1);
 
+
     const { mutate: addToCart, isPending: isAddingCart } = useCreateCart({
         onSuccess: () => {
             Alert.alert('Thành công', 'Đã thêm sản phẩm vào giỏ hàng 🛒');
         },
-        onError: () => {
-            Alert.alert('Lỗi', 'Không thể thêm vào giỏ hàng, vui lòng thử lại.');
+        onError: (error: any) => {
+            console.log('Add to cart error:', error);
+            console.log('Error response:', error.response?.data);
+            console.log('Error status:', error.response?.status);
+            Alert.alert('Lỗi', `Không thể thêm vào giỏ hàng: ${error.response?.data?.message || error.message || 'Vui lòng thử lại.'}`);
         },
     });
+
 
     const handleBuyNow = () => {
         if (!variant || !product) {
@@ -139,9 +144,6 @@ export default function ProductDetailScreen() {
                         <Ionicons name="arrow-back" size={22} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle} numberOfLines={1}>Chi tiết sản phẩm</Text>
-                    <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8}>
-                        <Ionicons name="heart-outline" size={22} color="#fff" />
-                    </TouchableOpacity>
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -352,14 +354,16 @@ export default function ProductDetailScreen() {
                                 Alert.alert('Chú ý', 'Vui lòng chọn màu sắc và kích cỡ trước.');
                                 return;
                             }
-                            addToCart({
+                            const payload = {
                                 productId: product._id,
                                 variant: {
                                     color: selectedColor,
                                     size: selectedSize,
                                 },
                                 quantity: qty,
-                            });
+                            };
+                            console.log('Adding to cart with payload:', payload);
+                            addToCart(payload);
                         }}
                     >
                         {isAddingCart ? (

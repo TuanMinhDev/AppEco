@@ -38,3 +38,10 @@ export type GetCartResponse = {
   message: string;
   cart: Cart;
 };
+
+export type UpdateQuatity = {
+  quantity: number;
+};
+export type DeleteCart = {
+  itemIds: string[];
+};

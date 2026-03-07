@@ -27,15 +27,11 @@ apiClient.interceptors.request.use(
     try {
       // Lấy token từ AsyncStorage
       const token = await AsyncStorage.getItem('token');
-      console.log('Token from AsyncStorage:', token);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('Authorization header set:', config.headers.Authorization);
       } else {
-        console.log('No token found in AsyncStorage');
       }
     } catch (error) {
-      console.log('Error getting token:', error);
     }
     return config;
   },

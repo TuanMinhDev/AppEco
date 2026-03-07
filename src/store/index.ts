@@ -3,11 +3,13 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import authReducer from './slices/authSlice';
 import checkoutReducer from './slices/checkoutSlice';
+import ordersReducer from './slices/ordersSlice';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     checkout: checkoutReducer,
+    orders: ordersReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({
     serializableCheck: false,
