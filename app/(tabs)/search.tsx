@@ -2,6 +2,7 @@ import { useListProduct } from '@/api/product/product.api';
 import { GetProductQuery } from '@/api/product/product.type';
 import { AppInput } from '@/components/app-input';
 import { ProductItem } from '@/components/commom/ProductItem';
+import { AppEco } from '@/constants/theme';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useRef } from 'react';
@@ -54,7 +55,7 @@ export default function SearchScreen() {
                     {/* ── Header ── */}
                     <View style={styles.header}>
                         <TouchableOpacity style={styles.backBtn} activeOpacity={0.8} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#6B7280" />
+                            <Ionicons name="arrow-back" size={24} color={AppEco.textSecondary} />
                         </TouchableOpacity>
                         <View style={{ flex: 1 }}>
                             <AppInput
@@ -80,7 +81,7 @@ export default function SearchScreen() {
                     {/* ── Products Grid ── */}
                     {products.length === 0 ? (
                         <View style={styles.emptyState}>
-                            <MaterialCommunityIcons name="shopping-outline" size={80} color="rgba(255,255,255,0.2)" />
+                            <MaterialCommunityIcons name="shopping-outline" size={80} color={AppEco.border} />
                             <Text style={styles.emptyText}>
                                 {name?.trim() ? 'Không tìm thấy sản phẩm nào' : 'Nhập từ khóa để tìm kiếm'}
                             </Text>
@@ -105,7 +106,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AppEco.background,
     },
     scrollContent: {
         paddingHorizontal: 20,
@@ -123,11 +124,11 @@ const styles = StyleSheet.create({
         width: 42,
         height: 42,
         borderRadius: 21,
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        backgroundColor: AppEco.surfaceMuted,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: AppEco.border,
     },
     searchBox: {
         flex: 1,
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         fontSize: 15,
-        color: '#111827',
+        color: AppEco.text,
     },
 
     // ── Results Header ──
@@ -153,12 +154,12 @@ const styles = StyleSheet.create({
     resultsTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#111827',
+        color: AppEco.text,
         marginBottom: 4,
     },
     resultsCount: {
         fontSize: 14,
-        color: '#6B7280',
+        color: AppEco.textSecondary,
         marginBottom: 8,
     },
 
@@ -176,20 +177,20 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     emptyText: {
-        color: '#6B7280',
+        color: AppEco.textSecondary,
         fontSize: 16,
         textAlign: 'center',
     },
     clearSearchBtn: {
-        backgroundColor: 'rgba(59,130,246,0.1)',
+        backgroundColor: AppEco.surfaceMuted,
         borderWidth: 1,
-        borderColor: '#0EA5E9',
+        borderColor: AppEco.primary,
         borderRadius: 12,
         paddingHorizontal: 20,
         paddingVertical: 10,
     },
     clearSearchText: {
-        color: '#0EA5E9',
+        color: AppEco.primary,
         fontSize: 14,
         fontWeight: '600',
     },

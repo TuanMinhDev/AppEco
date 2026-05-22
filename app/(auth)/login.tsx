@@ -1,45 +1,52 @@
-import { useLogin } from "@/api/auth/auth.api";
-import { AppInput } from "@/components/app-input";
-import { ErrorModal } from "@/components/error-modal";
-import { AntDesign, FontAwesome } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useLogin } from '@/api/auth/auth.api';
+import { AppInput } from '@/components/app-input';
+import { useToast } from '@/components/toast/ToastProvider';
+import { AppEco } from '@/constants/theme';
+import { AntDesign, FontAwesome } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useLocalSearchParams } from 'expo-router';
+import React from 'react';
+import { FormProvider, useForm, useFormContext } from 'react-hook-form';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { getApiErrorMessage } from '@/utils/api-error-message';
+
 type LoginForm = {
   account: string;
   password: string;
 };
 
-export default function LoginScreen() {
-  const [errorModalVisible, setErrorModalVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    defaultValues: {
-      account: "",
-      password: "",
-    },
-  });
+function isSafeInternalRedirect(path: string | undefined): path is string {
+  if (!path || typeof path !== 'string') return false;
+  if (!path.startsWith('/') || path.startsWith('//')) return false;
+  return true;
+}
+
+function LoginFormContent() {
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const { redirect: redirectParam } = useLocalSearchParams<{ redirect?: string | string[] }>();
+  const redirect = Array.isArray(redirectParam) ? redirectParam[0] : redirectParam;
+
+  const { control, handleSubmit } = useFormContext<LoginForm>();
 
   const loginMutation = useLogin({
     onSuccess: () => {
-      router.replace("/(tabs)");
+      const next =
+        typeof redirect === 'string' && isSafeInternalRedirect(redirect)
+          ? redirect
+          : '/(tabs)';
+      router.replace(next as any);
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
-      setErrorMessage(message);
-      setErrorModalVisible(true);
+    onError: (error: unknown) => {
+      toast.showError(
+        getApiErrorMessage(error, 'Đăng nhập thất bại. Vui lòng thử lại.'),
+      );
     },
   });
 
   const onSubmit = (data: LoginForm) => {
-
     loginMutation.mutate({
       identifier: data.account,
       password: data.password,
@@ -48,19 +55,36 @@ export default function LoginScreen() {
 
   return (
     <>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.container}>
-          <Text style={styles.title}>Đăng nhập</Text>
+      <View style={[styles.root, { paddingBottom: insets.bottom + 12 }]}>
+        <LinearGradient
+          colors={[...AppEco.heroGradient]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.hero, { paddingTop: insets.top + 12 }]}
+        >
+          <View style={styles.heroHeader}>
+            {/* <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.replace('/(auth)')}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Quay lại"
+            >
+              <Ionicons name="chevron-back" size={26} color="#fff" />
+            </TouchableOpacity> */}
+            <Text style={styles.heroTitle}>Đăng nhập</Text>
+          </View>
+          <Text style={styles.heroSub}>Chào mừng trở lại Pine Studio</Text>
+        </LinearGradient>
 
+        <SafeAreaView style={styles.sheetSafe} edges={[]}>
           <View style={styles.form}>
             <AppInput
               label="Tài khoản"
               name="account"
               control={control}
-              rules={{
-                required: "Vui lòng nhập tài khoản",
-              }}
-              placeholder="Nhập tài khoản"
+              rules={{ required: 'Vui lòng nhập tài khoản' }}
+              placeholder="Email hoặc số điện thoại"
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -72,191 +96,167 @@ export default function LoginScreen() {
               name="password"
               control={control}
               rules={{
-                required: "Vui lòng nhập mật khẩu",
-                minLength: {
-                  value: 6,
-                  message: "Mật khẩu tối thiểu 6 ký tự",
-                },
+                required: 'Vui lòng nhập mật khẩu',
+                minLength: { value: 6, message: 'Mật khẩu tối thiểu 6 ký tự' },
               }}
               placeholder="Nhập mật khẩu"
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="done"
-              // onPressForgot={() => {}}
             />
 
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.button, styles.loginButton]}
-                onPress={handleSubmit(onSubmit)}
-                disabled={loginMutation.isPending}
-              >
-                <Text style={styles.buttonText}>
-                  {loginMutation.isPending ? "Loading..." : "Đăng nhập"}
-                </Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loginMutation.isPending && styles.primaryBtnDisabled]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={loginMutation.isPending}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.primaryBtnText}>
+                {loginMutation.isPending ? 'Đang xử lý…' : 'Đăng nhập'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/register')}
+              disabled={loginMutation.isPending}
+              style={styles.footerLinkWrap}
+            >
+              <Text style={styles.footerMuted}>
+                Bạn chưa có tài khoản?{' '}
+                <Text style={styles.footerLink}>Đăng ký</Text>
+              </Text>
+            </TouchableOpacity>
+
+          </View>
+
+          <View style={styles.socialSection}>
+            <View style={styles.dividerRow}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>Hoặc</Text>
+              <View style={styles.divider} />
+            </View>
+
+            <View style={styles.socialRow}>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.85}>
+                <FontAwesome name="facebook-f" size={20} color="#1877f2" />
               </TouchableOpacity>
-
-              <View style={styles.textRes}>
-                <TouchableOpacity
-                  onPress={() => router.push("/register")}
-                  disabled={loginMutation.isPending}
-                >
-                  <Text
-                    style={{ color: "#64748B", fontSize: 15 }}
-                  >
-                    Bạn chưa có tài khoản?{" "}
-                    <Text
-                      style={{
-                        color: '#3B82F6',
-                        fontSize: 15,
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      Đăng ký
-                    </Text>
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.boxDiv}>
-                <View style={styles.divider} />
-              </View>
-
-              <View style={styles.socialLogin}>
-                <Text style={styles.socialText}>Hoặc đăng nhập với</Text>
-                <View style={styles.socialButtons}>
-                  <TouchableOpacity
-                    style={[styles.socialButton, styles.facebookButton]}
-                  >
-                    <FontAwesome name="facebook-f" size={20} color="#1877f2" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.socialButton, styles.googleButton]}
-                  >
-                    <AntDesign name="google" size={20} color="#DB4437" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.85}>
+                <AntDesign name="google" size={20} color="#DB4437" />
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </SafeAreaView>
-      
-      <ErrorModal
-        visible={errorModalVisible}
-        message={errorMessage}
-        onClose={() => setErrorModalVisible(false)}
-      />
+        </SafeAreaView>
+      </View>
+
     </>
   );
 }
 
+export default function LoginScreen() {
+  const form = useForm<LoginForm>({
+    defaultValues: { account: '', password: '' },
+  });
+
+  return (
+    <FormProvider {...form}>
+      <LoginFormContent />
+    </FormProvider>
+  );
+}
+
 const styles = StyleSheet.create({
-  safeArea: {
+  root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppEco.background,
   },
-  container: {
-    flex: 1,
+  hero: {
     paddingHorizontal: 20,
-    gap: 16,
-    alignItems: "center",
-    paddingTop: "20%",
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 36,
+    borderBottomLeftRadius: AppEco.radiusXl,
+    borderBottomRightRadius: AppEco.radiusXl,
   },
-  logo: {
-    width: 180,
-    height: 180,
-    resizeMode: "contain",
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 10,
+    marginTop:10
   },
-  title: {
-    fontSize: 40,
-    fontWeight: '700',
-    textAlign: 'center',
-    color: '#1E40AF',
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  heroSub: {
+    marginTop: 8,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
+  },
+  sheetSafe: {
+    flex: 1,
+    backgroundColor: AppEco.background,
   },
   form: {
-    width: "100%",
-    gap: 30,
-    marginTop: "20%",
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 28,
+    gap: 18,
   },
-  actions: {
-    marginTop: "10%",
-  },
-  button: {
-    width: "100%",
+  primaryBtn: {
+    marginTop: 8,
+    backgroundColor: AppEco.primary,
     paddingVertical: 16,
-    borderRadius: 50,
-    alignItems: "center",
+    borderRadius: AppEco.radiusLg,
+    alignItems: 'center',
+    ...AppEco.shadowCard,
   },
-  loginButton: {
-    backgroundColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  primaryBtnDisabled: { opacity: 0.7 },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+  footerLinkWrap: { alignItems: 'center', marginTop: 4 },
+  footerMuted: {
+    fontSize: 15,
+    color: AppEco.textSecondary,
   },
-  errorText: {
-    color: "#DC2626",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 4,
+  footerLink: {
+    color: AppEco.primary,
+    fontWeight: '700',
   },
-  textRes: {
-    marginTop: "10%",
-    alignItems: "center",
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
   },
-  socialLogin: {
-    marginTop: "5%",
-    alignItems: "center",
+  divider: { flex: 1, height: 1, backgroundColor: AppEco.borderSoft },
+  dividerText: { fontSize: 13, color: AppEco.textMuted, fontWeight: '600' },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
   },
-  socialText: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 15,
-  },
-  socialButtons: {
-    flexDirection: "row",
-    gap: 15,
-  },
-  socialButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  facebookButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: '#3B82F6',
-  },
-  googleButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: '#3B82F6',
-  },
-  socialButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  socialIcon: {
-    marginRight: 8,
-  },
-  divider: {
-    width: '80%',
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginVertical: 20,
-  },
-  boxDiv: {
-    marginTop: "10%",
-    justifyContent: "center",
+  socialBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: AppEco.surface,
+    borderWidth: 1.5,
+    borderColor: AppEco.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...AppEco.shadowCard,
   },
 });

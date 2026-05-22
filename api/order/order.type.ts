@@ -30,20 +30,26 @@ export type OrderProductPopulated = {
 };
 
 export interface OrderLineItemResolved {
+  /** _id subdocument dòng đơn — bắt buộc cho flow đánh giá (POST comment + reviewable-items) */
+  _id?: string;
   productId: string | OrderProductPopulated;
   variant: OrderItemVariant;
   quantity: number;
   price: number;
 }
 
-/** Snapshot gửi khi POST /order/create — khớp doc.md */
+/** Snapshot gửi khi POST /order/create — khớp FE_AI_API.md */
 export interface OrderShippingAddressSnapshot {
   fullName: string;
   phoneNumber: string;
+  /** Địa chỉ chi tiết / số nhà */
   address: string;
-  city: string;
-  district: string;
+  province: string;
   ward: string;
+  /** Legacy: map sang province nếu chỉ có city */
+  city?: string;
+  /** Optional */
+  district?: string;
 }
 
 export interface CreateOrderBody {

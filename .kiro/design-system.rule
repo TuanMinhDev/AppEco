@@ -1,0 +1,214 @@
+# AppEco Design System Rules
+
+## Tổng quan
+AppEco là ứng dụng mua sắm xanh với thiết kế thân thiện môi trường, sử dụng tông màu xanh teal làm chủ đạo kết hợp với nền kem nhạt tạo cảm giác tươi mới, sạch sẽ và gần gũi với thiên nhiên.
+
+## Màu sắc (Colors)
+
+### Màu chính (Primary Colors)
+- **Primary**: `#0F766E` - Màu xanh teal chủ đạo, dùng cho buttons, links, highlights
+- **Primary Dark**: `#0D5E57` - Dùng cho hover states, pressed states
+- **Primary Light**: `#14B8A6` - Dùng cho lighter accents
+- **Primary Subtle**: `#5EEAD4` - Dùng cho very light accents
+- **Primary Muted**: `rgba(15, 118, 110, 0.12)` - Dùng cho backgrounds với opacity
+
+### Màu phụ (Accent Colors)
+- **Accent**: `#CA8A04` - Màu vàng đất, dùng cho special highlights
+- **Accent Soft**: `#EAB308` - Màu vàng nhạt hơn
+
+### Màu nền (Background Colors)
+- **Background**: `#F3FAF8` - Nền chính của app (xanh kem nhạt)
+- **Background Warm**: `#F7FAF6` - Nền ấm hơn một chút
+- **Surface**: `#FFFFFF` - Màu trắng cho cards, modals
+- **Surface Muted**: `#ECFDF5` - Nền nhạt cho secondary surfaces
+
+### Màu viền (Border Colors)
+- **Border**: `#CFE8E4` - Viền chính
+- **Border Soft**: `#E8F4F0` - Viền nhạt hơn
+
+### Màu chữ (Text Colors)
+- **Text**: `#134E4A` - Màu chữ chính (xanh đậm)
+- **Text Secondary**: `#5F7673` - Màu chữ phụ
+- **Text Muted**: `#8FA9A4` - Màu chữ mờ nhạt
+
+### Màu trạng thái (Status Colors)
+- **Success**: `#059669` - Màu xanh lá cho success states
+- **Danger**: `#DC2626` - Màu đỏ cho errors, delete actions
+- **Sale**: `#E11D48` - Màu đỏ hồng cho sale tags
+
+### Gradients
+- **Hero Gradient**: `['#0F766E', '#0D9488', '#2DD4BF']` - Dùng cho hero sections, headers
+- **Card Gradient**: `['#F0FDFA', '#FFFFFF']` - Dùng cho card backgrounds
+- **FAB Gradient**: `['#0F766E', '#14B8A6']` - Dùng cho floating action buttons
+
+## Border Radius
+- **radiusSm**: `12` - Small radius cho small elements
+- **radiusMd**: `16` - Medium radius cho cards
+- **radiusLg**: `20` - Large radius cho buttons, inputs
+- **radiusXl**: `28` - Extra large radius cho hero sections
+- **radiusFull**: `999` - Full rounded cho pills, badges
+
+## Shadows
+### Shadow Soft
+```typescript
+{
+  shadowColor: '#0F766E',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.12,
+  shadowRadius: 12,
+  elevation: 4,
+}
+```
+
+### Shadow Card
+```typescript
+{
+  shadowColor: '#134E4A',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 10,
+  elevation: 2,
+}
+```
+
+## Typography
+- **Hero Title**: fontSize 32-44, fontWeight '800', color '#fff'
+- **Hero Subtitle**: fontSize 16-17, color 'rgba(255,255,255,0.9)', fontWeight '500'
+- **Section Title**: fontSize 22, fontWeight '800', color AppEco.text
+- **Body Text**: fontSize 15, color AppEco.textSecondary
+- **Button Text**: fontSize 17, fontWeight '700', color '#fff'
+- **Small Text**: fontSize 13, fontWeight '600'
+
+## Component Patterns
+
+### Hero Section (Auth Pages)
+- Sử dụng `LinearGradient` với `AppEco.heroGradient`
+- Background có `borderBottomLeftRadius` và `borderBottomRightRadius` với `AppEco.radiusXl`
+- Padding top bao gồm `insets.top + 12-24`
+- Có thể có decorative circles với `backgroundColor: 'rgba(255,255,255,0.12)'`
+- Badge với `backgroundColor: 'rgba(255,255,255,0.2)'` và `borderRadius: AppEco.radiusFull`
+
+### Back Button
+- Width/height: 40
+- Border radius: 20
+- Background: `'rgba(255,255,255,0.2)'`
+- Icon color: `'#fff'`
+- Icon size: 26
+
+### Primary Button
+- Background: `AppEco.primary`
+- Padding vertical: 16
+- Border radius: `AppEco.radiusLg`
+- Text color: `'#fff'`
+- Font size: 17, fontWeight: '700'
+- Shadow: `AppEco.shadowCard`
+- Disabled opacity: 0.7
+
+### Secondary Button
+- Background: `AppEco.surfaceMuted`
+- Border: 2px solid `AppEco.border`
+- Text color: `AppEco.primary`
+- Same padding and radius as primary
+
+### Social Buttons
+- Width/height: 52
+- Border radius: 26
+- Background: `AppEco.surface`
+- Border: 1.5px solid `AppEco.border`
+- Shadow: `AppEco.shadowCard`
+
+### Input Fields
+- Background: `AppEco.surface`
+- Border: `AppEco.border`
+- Border radius: `AppEco.radiusLg`
+- Text color: `AppEco.text`
+- Placeholder color: `AppEco.textMuted`
+
+### Cards
+- Background: `AppEco.surface`
+- Border radius: `AppEco.radiusMd` (16)
+- Padding: 16
+- Shadow: `AppEco.shadowCard`
+- Margin: 12-16
+
+### Dividers
+- Height: 1
+- Background: `AppEco.borderSoft`
+
+## QUY TẮC BẮT BUỘC
+
+### ❌ KHÔNG BAO GIỜ sử dụng:
+1. Màu hardcoded như `#2563EB`, `#F8FAFF`, `#EFF6FF`, `#FFFFFF` trực tiếp
+2. Màu xanh blue (`#2563EB`, `#1D4ED8`, `#BFDBFE`, `#DBEAFE`) - đây KHÔNG phải màu của AppEco
+3. Màu xám lạnh (`#F1F5F9`, `#E2E8F0`, `#CBD5E1`) - không phù hợp với tone xanh ấm
+4. Border radius hardcoded như `12`, `16`, `20` - phải dùng `AppEco.radiusSm/Md/Lg/Xl`
+5. Shadow hardcoded - phải dùng `AppEco.shadowSoft` hoặc `AppEco.shadowCard`
+
+### ✅ LUÔN LUÔN sử dụng:
+1. `AppEco.primary` cho primary buttons, links, active states
+2. `AppEco.background` cho root backgrounds
+3. `AppEco.surface` cho card backgrounds, modal backgrounds
+4. `AppEco.text` cho main text color
+5. `AppEco.textSecondary` cho secondary text
+6. `AppEco.textMuted` cho muted/placeholder text
+7. `AppEco.border` và `AppEco.borderSoft` cho borders
+8. `AppEco.heroGradient` cho hero sections với LinearGradient
+9. `AppEco.radiusSm/Md/Lg/Xl/Full` cho border radius
+10. `AppEco.shadowSoft` hoặc `AppEco.shadowCard` cho shadows
+
+### Mapping màu cũ sang màu mới:
+- `#2563EB` (blue) → `AppEco.primary` (#0F766E)
+- `#F8FAFF` (blue tint) → `AppEco.background` (#F3FAF8)
+- `#EFF6FF` (light blue) → `AppEco.surfaceMuted` (#ECFDF5)
+- `#FFFFFF` → `AppEco.surface`
+- `#F1F5F9` (gray) → `AppEco.background`
+- `#E2E8F0` (gray border) → `AppEco.border`
+- `#F3F4F6` (light gray) → `AppEco.borderSoft`
+- `#6B7280` (gray text) → `AppEco.textSecondary`
+- `#1D4ED8` (dark blue) → `AppEco.primaryDark`
+- `#BFDBFE` (light blue border) → `AppEco.border`
+- `#DBEAFE` (very light blue) → `AppEco.surfaceMuted`
+
+## Import Statement
+Mọi file component phải import:
+```typescript
+import { AppEco } from '@/constants/theme';
+```
+
+## Ví dụ sử dụng đúng:
+
+```typescript
+const styles = StyleSheet.create({
+  root: { 
+    flex: 1, 
+    backgroundColor: AppEco.background // ✅ ĐÚNG
+  },
+  card: {
+    backgroundColor: AppEco.surface, // ✅ ĐÚNG
+    borderRadius: AppEco.radiusMd, // ✅ ĐÚNG
+    padding: 16,
+    ...AppEco.shadowCard, // ✅ ĐÚNG
+  },
+  button: {
+    backgroundColor: AppEco.primary, // ✅ ĐÚNG
+    borderRadius: AppEco.radiusLg, // ✅ ĐÚNG
+    paddingVertical: 16,
+  },
+  text: {
+    color: AppEco.text, // ✅ ĐÚNG
+    fontSize: 15,
+  },
+});
+```
+
+## Checklist khi tạo/sửa component:
+- [ ] Đã import `AppEco` từ `@/constants/theme`
+- [ ] Không có màu hardcoded nào (kiểm tra `#` trong styles)
+- [ ] Sử dụng `AppEco.primary` thay vì blue colors
+- [ ] Sử dụng `AppEco.background` cho root backgrounds
+- [ ] Sử dụng `AppEco.surface` cho card/modal backgrounds
+- [ ] Sử dụng `AppEco.radiusSm/Md/Lg/Xl` cho border radius
+- [ ] Sử dụng `AppEco.shadowSoft` hoặc `AppEco.shadowCard` cho shadows
+- [ ] Hero sections sử dụng `LinearGradient` với `AppEco.heroGradient`
+- [ ] Text colors sử dụng `AppEco.text/textSecondary/textMuted`
+- [ ] Borders sử dụng `AppEco.border/borderSoft`

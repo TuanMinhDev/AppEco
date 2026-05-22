@@ -1,20 +1,76 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Theme: navigation (light/dark) + Pine design tokens (light-first UI).
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+/** Palette Pine — dùng xuyên suốt UI (`AppEco` giữ tên export để tương thích mã hiện có). */
+export const AppEco = {
+  primary: '#0F766E',
+  primaryDark: '#0D5E57',
+  primaryLight: '#14B8A6',
+  primarySubtle: '#5EEAD4',
+  primaryMuted: 'rgba(15, 118, 110, 0.12)',
+
+  accent: '#CA8A04',
+  accentSoft: '#EAB308',
+
+  background: '#F3FAF8',
+  backgroundWarm: '#F7FAF6',
+  surface: '#FFFFFF',
+  surfaceMuted: '#ECFDF5',
+
+  border: '#CFE8E4',
+  borderSoft: '#E8F4F0',
+
+  text: '#134E4A',
+  textSecondary: '#5F7673',
+  textMuted: '#8FA9A4',
+
+  success: '#059669',
+  danger: '#DC2626',
+  sale: '#E11D48',
+
+  /** LinearGradient tuple */
+  heroGradient: ['#0F766E', '#0D9488', '#2DD4BF'] as const,
+  cardGradient: ['#F0FDFA', '#FFFFFF'] as const,
+  fabGradient: ['#0F766E', '#14B8A6'] as const,
+
+  radiusSm: 12,
+  radiusMd: 16,
+  radiusLg: 20,
+  radiusXl: 28,
+  radiusFull: 999,
+
+  shadowSoft: {
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  shadowCard: {
+    shadowColor: '#134E4A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+} as const;
+
+/** Alias Pine — cùng object với AppEco */
+export const Pine = AppEco;
+
+const tintColorLight = AppEco.primary;
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: AppEco.text,
+    background: AppEco.background,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: AppEco.textSecondary,
+    tabIconDefault: AppEco.textMuted,
     tabIconSelected: tintColorLight,
   },
   dark: {
@@ -29,13 +85,9 @@ export const Colors = {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {

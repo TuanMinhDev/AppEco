@@ -1,16 +1,18 @@
+import { useReviewableItems } from '@/api/comment/comment.api';
 import { useOrderDetail } from '@/api/order/order.api';
 import type { OrderLineItemResolved, OrderShippingAddressSnapshot } from '@/api/order/order.type';
+import { getOrderLineProductId, resolveReviewableOrderItemId } from '@/api/order/order.utils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -59,6 +61,9 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, isLoading, isError, error } = useOrderDetail(id ?? '');
   const order = data?.data?.order;
+  const deliveredOrderId =
+    order && String(order.status) === 'delivered' ? order._id : undefined;
+  const reviewableQ = useReviewableItems(deliveredOrderId);
 
   const errMsg =
     error && typeof error === 'object' && 'response' in error
@@ -68,7 +73,7 @@ export default function OrderDetailScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.center} edges={['top']}>
-        <ActivityIndicator size="large" color="#0EA5E9" />
+        <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.muted}>Đang tải đơn hàng...</Text>
       </SafeAreaView>
     );
@@ -96,6 +101,9 @@ export default function OrderDetailScreen() {
   const shipMethod = order.shippingMethod ? METHOD_LABELS[String(order.shippingMethod)] ?? String(order.shippingMethod) : '—';
   const addr = order.shippingAddress;
 
+  const reviewableList = reviewableQ.data?.reviewableItems ?? [];
+  const reviewableIds = new Set(reviewableList.map((r) => r.orderItemId));
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
@@ -118,12 +126,42 @@ export default function OrderDetailScreen() {
           <Text style={styles.meta}>Người bán: {sellerName}</Text>
         </View>
 
+        {statusKey === 'delivered' ? (
+          <View style={styles.reviewBanner}>
+            <Ionicons name="sparkles-outline" size={22} color="#0369A1" />
+            <View style={styles.reviewBannerTextWrap}>
+              <Text style={styles.reviewBannerTitle}>Bạn đã nhận hàng</Text>
+              <Text style={styles.reviewBannerSub}>Chia sẻ trải nghiệm với mọi người?</Text>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Sản phẩm</Text>
+          {statusKey === 'delivered' && reviewableQ.isLoading ? (
+            <Text style={styles.reviewableHint}>Đang tải trạng thái đánh giá...</Text>
+          ) : null}
+          {statusKey === 'delivered' && reviewableQ.isError ? (
+            <TouchableOpacity
+              style={styles.reviewableErrRow}
+              onPress={() => reviewableQ.refetch()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.reviewableErrText}>Không tải được danh sách đánh giá. Chạm để thử lại.</Text>
+            </TouchableOpacity>
+          ) : null}
           {order.items?.map((line, idx) => {
             const uri = lineProductImage(line);
+            const pid = getOrderLineProductId(line);
+            const lineItemId = resolveReviewableOrderItemId(line, reviewableList);
+            const showReviewBtn =
+              statusKey === 'delivered' &&
+              reviewableQ.isSuccess &&
+              lineItemId != null &&
+              reviewableIds.has(lineItemId);
+            const lineKey = line._id ?? `line-${idx}`;
             return (
-              <View key={idx} style={[styles.line, idx > 0 && styles.lineBorder]}>
+              <View key={lineKey} style={[styles.line, idx > 0 && styles.lineBorder]}>
                 <View style={styles.lineImgWrap}>
                   {uri ? (
                     <Image source={{ uri }} style={styles.lineImg} />
@@ -141,6 +179,20 @@ export default function OrderDetailScreen() {
                     {line.variant?.color || '—'} · {line.variant?.size || '—'} × {line.quantity}
                   </Text>
                   <Text style={styles.linePrice}>{formatPrice(line.price * line.quantity)}</Text>
+                  {showReviewBtn && lineItemId ? (
+                    <TouchableOpacity
+                      style={styles.reviewLineBtn}
+                      onPress={() =>
+                        router.push(
+                          `/product/${pid}?review=1&orderId=${order._id}&orderItemId=${encodeURIComponent(lineItemId)}` as any
+                        )
+                      }
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="star-outline" size={15} color="#1D4ED8" />
+                      <Text style={styles.reviewLineBtnText}>Đánh giá sản phẩm</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
             );
@@ -192,7 +244,7 @@ const styles = StyleSheet.create({
   errSub: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 21 },
   backPrimary: {
     marginTop: 16,
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#2563EB',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -232,14 +284,14 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   orderCode: { fontSize: 18, fontWeight: '900', color: '#111827' },
   statusPill: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
   },
-  statusPillText: { fontSize: 12, fontWeight: '700', color: '#0284C7' },
+  statusPillText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   meta: { fontSize: 14, color: '#4B5563', marginTop: 8, lineHeight: 20 },
 
   line: { flexDirection: 'row', gap: 12, paddingVertical: 10 },
@@ -257,19 +309,58 @@ const styles = StyleSheet.create({
   lineBody: { flex: 1, gap: 4 },
   lineName: { fontSize: 14, fontWeight: '600', color: '#111827' },
   lineVar: { fontSize: 12, color: '#6B7280' },
-  linePrice: { fontSize: 14, fontWeight: '800', color: '#0EA5E9' },
+  linePrice: { fontSize: 14, fontWeight: '800', color: '#2563EB' },
 
   addrBlock: { fontSize: 14, color: '#374151', marginTop: 6, lineHeight: 21 },
 
   totalCard: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#EFF6FF',
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: '#BFDBFE',
     alignItems: 'center',
   },
   totalLabel: { fontSize: 14, color: '#0369A1', fontWeight: '600' },
-  totalValue: { fontSize: 24, fontWeight: '900', color: '#0EA5E9', marginTop: 6 },
+  totalValue: { fontSize: 24, fontWeight: '900', color: '#2563EB', marginTop: 6 },
   totalHint: { fontSize: 11, color: '#6B7280', marginTop: 8 },
+
+  reviewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  reviewBannerTextWrap: { flex: 1, gap: 4 },
+  reviewBannerTitle: { fontSize: 15, fontWeight: '800', color: '#0C4A6E' },
+  reviewBannerSub: { fontSize: 13, color: '#0369A1', lineHeight: 18 },
+  reviewLineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  reviewLineBtnText: { fontSize: 13, fontWeight: '800', color: '#1D4ED8' },
+  reviewableHint: { fontSize: 13, color: '#6B7280', marginBottom: 10 },
+  reviewableErrRow: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  reviewableErrText: { fontSize: 13, color: '#B91C1C', fontWeight: '600', lineHeight: 19 },
 });

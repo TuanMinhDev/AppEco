@@ -1,6 +1,10 @@
 import { useListAddress } from '@/api/address/address.api';
 import type { AddressType } from '@/api/address/address.type';
-import { orderApis, orderKey, useShippingOptions } from '@/api/order/order.api';
+import {
+  invalidateQueriesAfterOrderCreated,
+  orderApis,
+  useShippingOptions,
+} from '@/api/order/order.api';
 import type { CreateOrderBody, ShippingMethod } from '@/api/order/order.type';
 import {
   getShippingOptionRows,
@@ -8,8 +12,10 @@ import {
   toShippingAddress,
 } from '@/api/order/order.utils';
 import { useGetCurrentUser } from '@/api/user/user.api';
+import { ScreenHero } from '@/components/screen-hero/ScreenHero';
+import { useToast } from '@/components/toast/ToastProvider';
+import { AppEco } from '@/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/src/store';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   clearCheckout,
   selectCheckoutItems,
@@ -24,14 +30,14 @@ import {
   setShippingFee,
   setShippingInfo,
 } from '@/src/store/slices/checkoutSlice';
-import { addNotification } from '@/src/store/slices/ordersSlice';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Controller, FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -42,16 +48,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
 function formatPrice(price: number) {
   return price.toLocaleString('vi-VN') + 'đ';
 }
 
 const ADDRESS_TYPE_MAP: Record<AddressType, { label: string; icon: 'home-outline' | 'business-outline' | 'cube-outline'; color: string; bg: string }> = {
-  home:      { label: 'Nhà riêng', icon: 'home-outline',     color: '#0EA5E9', bg: '#E0F2FE' },
+  home:      { label: 'Nhà riêng', icon: 'home-outline',     color: AppEco.primary, bg: AppEco.primaryMuted },
   office:    { label: 'Văn phòng', icon: 'business-outline', color: '#7C3AED', bg: '#EDE9FE' },
-  warehouse: { label: 'Kho hàng',  icon: 'cube-outline',     color: '#D97706', bg: '#FEF3C7' },
+  warehouse: { label: 'Kho hàng',  icon: 'cube-outline',     color: AppEco.accent, bg: '#FEF3C7' },
 };
 
 const PAYMENT_METHODS = [
@@ -66,14 +70,30 @@ const SHIP_METHOD_ICON: Record<string, 'cube-outline' | 'flash-outline' | 'rocke
   express: 'rocket-outline',
 };
 
-export default function CheckoutScreen() {
+type CheckoutFormValues = {
+  notes: string;
+  paymentType: 'cod' | 'card' | 'bank_transfer';
+};
+
+function CheckoutScreenInner() {
+  const toast = useToast();
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
+  const { control, getValues, setValue } = useFormContext<CheckoutFormValues>();
   const items = useAppSelector(selectCheckoutItems);
   const totals = useAppSelector(selectCheckoutTotals);
   const shippingInfo = useAppSelector(selectShippingInfo);
-  const paymentMethod = useAppSelector(selectPaymentMethod);
-  const notes = useAppSelector(selectCheckoutNotes);
+
+  const notesWatched = useWatch({ control, name: 'notes' });
+  const paymentTypeWatched = useWatch({ control, name: 'paymentType' });
+
+  useEffect(() => {
+    dispatch(setNotes(notesWatched));
+  }, [notesWatched, dispatch]);
+
+  useEffect(() => {
+    dispatch(setPaymentMethod({ type: paymentTypeWatched }));
+  }, [paymentTypeWatched, dispatch]);
 
   const { data: user } = useGetCurrentUser();
 
@@ -134,9 +154,17 @@ export default function CheckoutScreen() {
           phone: defaultAddress.phoneNumber,
           street: defaultAddress.street,
           ward: defaultAddress.ward,
-          address: `${defaultAddress.street}, ${defaultAddress.ward}, ${defaultAddress.district}, ${defaultAddress.province}`,
+          province: defaultAddress.province,
+          address: [
+            defaultAddress.street,
+            defaultAddress.ward,
+            defaultAddress.district,
+            defaultAddress.province,
+          ]
+            .filter(Boolean)
+            .join(', '),
           city: defaultAddress.province,
-          district: defaultAddress.district,
+          district: defaultAddress.district ?? '',
           addressId: defaultAddress._id,
           postalCode: '',
           addressType: defaultAddress.type ?? 'home',
@@ -158,48 +186,46 @@ export default function CheckoutScreen() {
 
   const handlePlaceOrder = async () => {
     if (!shippingInfo.fullName || !shippingInfo.phone) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ họ tên và số điện thoại người nhận');
+      toast.showError('Vui lòng điền đầy đủ họ tên và số điện thoại người nhận');
       return;
     }
     if (!shippingInfo.addressId) {
-      Alert.alert(
-        'Chọn địa chỉ',
-        'Vui lòng chọn địa chỉ giao hàng từ danh sách để tính phí vận chuyển và đặt hàng.'
+      toast.showError(
+        'Vui lòng chọn địa chỉ giao hàng từ danh sách để tính phí vận chuyển và đặt hàng.',
       );
       return;
     }
     if (items.length === 0) {
-      Alert.alert('Thông báo', 'Giỏ hàng trống, không thể đặt hàng');
+      toast.showError('Giỏ hàng trống, không thể đặt hàng');
       return;
     }
     if (!optionRows.length || !selectedShipping) {
-      Alert.alert('Phí vận chuyển', 'Chưa có phương án giao hàng. Kiểm tra địa chỉ và thử lại.');
+      toast.showError('Chưa có phương án giao hàng. Kiểm tra địa chỉ và thử lại.');
       return;
     }
 
     const snap = toShippingAddress(shippingInfo);
     if (!snap) {
-      Alert.alert(
-        'Thiếu địa chỉ',
-        'Cần đủ: họ tên, SĐT, đường/số nhà, tỉnh/thành, quận/huyện, phường/xã. Hãy chọn lại địa chỉ đã lưu.'
+      toast.showError(
+        'Cần đủ: họ tên, SĐT, địa chỉ chi tiết, tỉnh/thành và phường/xã. Hãy chọn hoặc cập nhật địa chỉ đã lưu.',
       );
       return;
     }
 
     const methodOk = ['economy', 'fast', 'express'].includes(selectedShipping);
     if (!methodOk) {
-      Alert.alert('Lỗi', 'Phương thức vận chuyển không hợp lệ.');
+      toast.showError('Phương thức vận chuyển không hợp lệ.');
       return;
     }
 
     if (!user) {
-      Alert.alert('Lỗi', 'Vui lòng đăng nhập để đặt hàng');
+      toast.showError('Vui lòng đăng nhập để đặt hàng');
       return;
     }
 
     const token = await AsyncStorage.getItem('token');
     if (!token) {
-      Alert.alert('Lỗi', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
+      toast.showError('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
       return;
     }
 
@@ -207,7 +233,7 @@ export default function CheckoutScreen() {
     for (const item of items) {
       const sid = item.sellerId;
       if (!sid) {
-        Alert.alert('Lỗi', 'Có sản phẩm thiếu thông tin người bán. Vui lòng thêm lại từ giỏ hàng.');
+        toast.showError('Có sản phẩm thiếu thông tin người bán. Vui lòng thêm lại từ giỏ hàng.');
         return;
       }
       const cur = bySeller.get(sid) ?? [];
@@ -216,7 +242,7 @@ export default function CheckoutScreen() {
     }
 
     if (bySeller.size > 1 && selectedShipping === 'express') {
-      Alert.alert('Lỗi', 'Hỏa tốc không áp dụng khi giỏ có nhiều cửa hàng. Chọn tiết kiệm hoặc nhanh.');
+      toast.showError('Hỏa tốc không áp dụng khi giỏ có nhiều cửa hàng. Chọn tiết kiệm hoặc nhanh.');
       return;
     }
 
@@ -240,38 +266,42 @@ export default function CheckoutScreen() {
           })),
           shippingMethod: selectedShipping as ShippingMethod,
           shippingAddress: snap,
-          notes: notes || undefined,
+          notes: getValues('notes')?.trim() || undefined,
         };
         const order = (await orderApis.create(body)).data;
         if (order?.orderCode) created.push(order.orderCode);
         else if (order?._id) created.push(order._id);
       }
 
-      await queryClient.invalidateQueries({ queryKey: [orderKey.LIST_ORDER] });
-      dispatch(
-        addNotification({
-          type: 'order_success',
-          title: 'Đặt hàng thành công',
-          message:
-            created.length > 1
-              ? `Đã tạo ${created.length} đơn: ${created.join(', ')}`
-              : 'Đơn hàng đã được đặt thành công',
-        })
+      await invalidateQueriesAfterOrderCreated(queryClient);
+      const reviewItemsMap = new Map<string, string>();
+      for (const [, sellerLines] of bySeller) {
+        for (const line of sellerLines) {
+          reviewItemsMap.set(line.productId._id, line.productId.name);
+        }
+      }
+      const reviewPayload = JSON.stringify(
+        [...reviewItemsMap.entries()].map(([pid, name]) => ({ id: pid, name }))
       );
       dispatch(clearCheckout());
-      router.replace('/orders');
-      Alert.alert(
-        'Thành công',
-        created.length > 1
-          ? `Đã đặt ${created.length} đơn (theo từng cửa hàng). Mã: ${created.join(', ')}`
-          : `Đặt hàng thành công${created[0] ? `. Mã: ${created[0]}` : ''}`
-      );
+      toast.showSuccess('Đặt hàng thành công!', {
+        duration: 2000,
+        onHidden: () => {
+          router.replace({
+            pathname: '/order-success',
+            params: {
+              items: encodeURIComponent(reviewPayload),
+              codes: created.join('|'),
+            },
+          } as any);
+        },
+      });
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       const errorMessage =
         err?.response?.data?.message || err?.message || 'Không thể đặt hàng. Vui lòng thử lại.';
       dispatch(setError(errorMessage));
-      Alert.alert('Lỗi', errorMessage);
+      toast.showError(errorMessage);
     } finally {
       dispatch(setProcessing(false));
       setPlacing(false);
@@ -279,15 +309,12 @@ export default function CheckoutScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thanh toán</Text>
-        <View style={styles.placeholder} />
-      </View>
+    <View style={styles.safeArea}>
+      <ScreenHero
+        title="Thanh toán"
+        subtitle="Xác nhận địa chỉ, vận chuyển và phương thức thanh toán"
+        onBack={() => router.back()}
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -295,7 +322,7 @@ export default function CheckoutScreen() {
           {/* --- Sản phẩm đã chọn --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="bag-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="bag-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Sản phẩm ({items.length})</Text>
             </View>
             {items.map((item, index) => {
@@ -307,7 +334,7 @@ export default function CheckoutScreen() {
                       <Image source={{ uri: image }} style={styles.itemImg} />
                     ) : (
                       <View style={styles.itemImgPlaceholder}>
-                        <MaterialCommunityIcons name="image-off-outline" size={22} color="#D1D5DB" />
+                        <MaterialCommunityIcons name="image-off-outline" size={22} color={AppEco.textMuted} />
                       </View>
                     )}
                     {!!item.productId.sale && item.productId.sale > 0 && (
@@ -335,7 +362,7 @@ export default function CheckoutScreen() {
           {/* --- Thông tin giao hàng --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="location-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="location-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Thông tin giao hàng</Text>
               <TouchableOpacity
                 onPress={() => router.push(hasAddresses ? ('/addresses?mode=select' as any) : ('/add-address' as any))}
@@ -347,14 +374,14 @@ export default function CheckoutScreen() {
 
             {addressLoading && !shippingInfo.address ? (
               <View style={styles.addressLoadingWrap}>
-                <ActivityIndicator size="small" color="#0EA5E9" />
+                <ActivityIndicator size="small" color={AppEco.primary} />
                 <Text style={styles.addressLoadingText}>Đang tải địa chỉ...</Text>
               </View>
             ) : shippingInfo.address ? (
               <View style={styles.addressBox}>
                 <View style={styles.addressBoxTop}>
                   <View style={styles.addressBoxIconWrap}>
-                    <Ionicons name="location" size={18} color="#0EA5E9" />
+                    <Ionicons name="location" size={18} color={AppEco.primary} />
                   </View>
                   <View style={styles.addressBoxInfo}>
                     <View style={styles.addressBoxNameRow}>
@@ -380,7 +407,7 @@ export default function CheckoutScreen() {
                 onPress={() => router.push('/add-address' as any)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="add-circle-outline" size={22} color="#0EA5E9" />
+                <Ionicons name="add-circle-outline" size={22} color={AppEco.primary} />
                 <Text style={styles.noAddressText}>Thêm địa chỉ giao hàng</Text>
               </TouchableOpacity>
             )}
@@ -388,7 +415,7 @@ export default function CheckoutScreen() {
           {/* --- Phương thức vận chuyển (API shipping-options) --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="bicycle-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="bicycle-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Phương thức vận chuyển</Text>
             </View>
             {!shippingInfo.addressId ? (
@@ -398,7 +425,7 @@ export default function CheckoutScreen() {
             ) : null}
             {shippingInfo.addressId && shipLoading ? (
               <View style={styles.addressLoadingWrap}>
-                <ActivityIndicator size="small" color="#0EA5E9" />
+                <ActivityIndicator size="small" color={AppEco.primary} />
                 <Text style={styles.addressLoadingText}>Đang tính phí vận chuyển...</Text>
               </View>
             ) : null}
@@ -409,7 +436,7 @@ export default function CheckoutScreen() {
             ) : null}
             {expressReason ? (
               <View style={styles.expressReasonBox}>
-                <Ionicons name="information-circle-outline" size={16} color="#0284C7" />
+                <Ionicons name="information-circle-outline" size={16} color={AppEco.primaryDark} />
                 <Text style={styles.expressReasonText}>{expressReason}</Text>
               </View>
             ) : null}
@@ -427,7 +454,7 @@ export default function CheckoutScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={[styles.shippingIconWrap, selected && styles.shippingIconWrapSelected]}>
-                    <Ionicons name={icon} size={20} color={selected ? '#0EA5E9' : '#6B7280'} />
+                    <Ionicons name={icon} size={20} color={selected ? AppEco.primary : AppEco.textSecondary} />
                   </View>
 
                   <View style={styles.shippingInfo}>
@@ -455,20 +482,25 @@ export default function CheckoutScreen() {
           {/* --- Phương thức thanh toán --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="wallet-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="wallet-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Phương thức thanh toán</Text>
             </View>
             {PAYMENT_METHODS.map((method) => {
-              const selected = paymentMethod?.type === method.id;
+              const selected = paymentTypeWatched === method.id;
               return (
                 <TouchableOpacity
                   key={method.id}
                   style={[styles.paymentMethod, selected && styles.paymentMethodSelected]}
-                  onPress={() => dispatch(setPaymentMethod({ type: method.id as any }))}
+                  onPress={() =>
+                    setValue('paymentType', method.id as CheckoutFormValues['paymentType'], {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    })
+                  }
                   activeOpacity={0.7}
                 >
                   <View style={[styles.paymentIconWrap, selected && styles.paymentIconWrapSelected]}>
-                    <Ionicons name={method.icon} size={20} color={selected ? '#0EA5E9' : '#6B7280'} />
+                    <Ionicons name={method.icon} size={20} color={selected ? AppEco.primary : AppEco.textSecondary} />
                   </View>
                   <View style={styles.paymentInfo}>
                     <Text style={[styles.paymentLabel, selected && styles.paymentLabelSelected]}>{method.label}</Text>
@@ -485,24 +517,30 @@ export default function CheckoutScreen() {
           {/* --- Ghi chú --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="create-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="create-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Ghi chú đơn hàng</Text>
               <Text style={styles.optionalBadge}>Tùy chọn</Text>
             </View>
-            <TextInput
-              style={[styles.input, styles.inputMultiline]}
-              placeholder="Ghi chú cho người giao hàng..."
-              placeholderTextColor="#9CA3AF"
-              value={notes}
-              onChangeText={(text) => dispatch(setNotes(text))}
-              multiline
+            <Controller
+              control={control}
+              name="notes"
+              render={({ field: { value, onChange } }) => (
+                <TextInput
+                  style={[styles.input, styles.inputMultiline]}
+                  placeholder="Ghi chú cho người giao hàng..."
+                  placeholderTextColor={AppEco.textMuted}
+                  value={value}
+                  onChangeText={onChange}
+                  multiline
+                />
+              )}
             />
           </View>
 
           {/* --- Tóm tắt đơn hàng --- */}
           <View style={styles.section}>
             <View style={styles.sectionTitleRow}>
-              <Ionicons name="receipt-outline" size={18} color="#0EA5E9" />
+              <Ionicons name="receipt-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Tóm tắt đơn hàng</Text>
             </View>
             <View style={styles.summaryRow}>
@@ -516,7 +554,7 @@ export default function CheckoutScreen() {
             {totals.discount > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Giảm giá</Text>
-                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-{formatPrice(totals.discount)}</Text>
+                <Text style={[styles.summaryValue, { color: AppEco.success }]}>-{formatPrice(totals.discount)}</Text>
               </View>
             )}
             <View style={styles.summaryDivider} />
@@ -566,45 +604,34 @@ export default function CheckoutScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
+  );
+}
+
+export default function CheckoutScreen() {
+  const notes = useAppSelector(selectCheckoutNotes);
+  const paymentMethod = useAppSelector(selectPaymentMethod);
+  const form = useForm<CheckoutFormValues>({
+    defaultValues: {
+      notes: notes ?? '',
+      paymentType: (paymentMethod?.type ?? 'cod') as CheckoutFormValues['paymentType'],
+    },
+  });
+
+  return (
+    <FormProvider {...form}>
+      <CheckoutScreenInner />
+    </FormProvider>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: AppEco.background,
   },
   flex: {
     flex: 1,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  placeholder: {
-    width: 36,
   },
 
   scrollContent: {
@@ -614,16 +641,12 @@ const styles = StyleSheet.create({
 
   // Section card
   section: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: AppEco.surface,
+    borderRadius: AppEco.radiusMd,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    borderColor: AppEco.border,
+    ...AppEco.shadowCard,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -634,13 +657,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111827',
+    color: AppEco.text,
     flex: 1,
   },
   optionalBadge: {
     fontSize: 11,
-    color: '#9CA3AF',
-    backgroundColor: '#F3F4F6',
+    color: AppEco.textMuted,
+    backgroundColor: AppEco.surfaceMuted,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -655,7 +678,7 @@ const styles = StyleSheet.create({
   },
   orderItemDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: AppEco.borderSoft,
   },
   itemImgWrap: {
     position: 'relative',
@@ -663,14 +686,14 @@ const styles = StyleSheet.create({
   itemImg: {
     width: 72,
     height: 72,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    borderRadius: AppEco.radiusMd,
+    backgroundColor: AppEco.surfaceMuted,
   },
   itemImgPlaceholder: {
     width: 72,
     height: 72,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    borderRadius: AppEco.radiusMd,
+    backgroundColor: AppEco.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -678,7 +701,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     left: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: AppEco.sale,
     borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 1,
@@ -696,12 +719,12 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: AppEco.text,
     lineHeight: 20,
   },
   itemVariant: {
     fontSize: 12,
-    color: '#6B7280',
+    color: AppEco.textSecondary,
   },
   itemPriceRow: {
     flexDirection: 'row',
@@ -712,17 +735,17 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0EA5E9',
+    color: AppEco.primary,
   },
   itemQty: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: AppEco.textMuted,
     fontWeight: '500',
   },
   itemSubtotal: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#374151',
+    color: AppEco.textSecondary,
     marginLeft: 'auto',
   },
 
@@ -740,18 +763,18 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
+    color: AppEco.textSecondary,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
+    backgroundColor: AppEco.surfaceMuted,
+    borderRadius: AppEco.radiusSm,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: AppEco.border,
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontSize: 14,
-    color: '#111827',
+    color: AppEco.text,
   },
   inputMultiline: {
     height: 76,
@@ -762,7 +785,7 @@ const styles = StyleSheet.create({
   editLink: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0EA5E9',
+    color: AppEco.primary,
   },
 
   // Address box (combined)
@@ -772,13 +795,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
-  addressLoadingText: { fontSize: 13, color: '#9CA3AF' },
+  addressLoadingText: { fontSize: 13, color: AppEco.textMuted },
 
   addressBox: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 12,
+    backgroundColor: AppEco.primaryMuted,
+    borderRadius: AppEco.radiusMd,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: AppEco.border,
     padding: 14,
     gap: 10,
   },
@@ -791,7 +814,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#E0F2FE',
+    backgroundColor: AppEco.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -802,9 +825,9 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: 'wrap',
   },
-  addressBoxName: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  addressBoxPhone: { fontSize: 13, color: '#6B7280' },
-  addressBoxAddr: { fontSize: 13, color: '#374151', lineHeight: 20 },
+  addressBoxName: { fontSize: 15, fontWeight: '700', color: AppEco.text },
+  addressBoxPhone: { fontSize: 13, color: AppEco.textSecondary },
+  addressBoxAddr: { fontSize: 13, color: AppEco.textSecondary, lineHeight: 20 },
   addrTypeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -821,12 +844,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    backgroundColor: '#DBEAFE',
+    backgroundColor: AppEco.surfaceMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  defaultBadgeText: { fontSize: 11, fontWeight: '700', color: '#0EA5E9' },
+  defaultBadgeText: { fontSize: 11, fontWeight: '700', color: AppEco.primary },
 
   noAddressBox: {
     flexDirection: 'row',
@@ -834,13 +857,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 18,
-    borderRadius: 12,
+    borderRadius: AppEco.radiusMd,
     borderWidth: 1.5,
-    borderColor: '#BAE6FD',
+    borderColor: AppEco.border,
     borderStyle: 'dashed',
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#EFF6FF',
   },
-  noAddressText: { fontSize: 14, fontWeight: '600', color: '#0EA5E9' },
+  noAddressText: { fontSize: 14, fontWeight: '600', color: '#2563EB' },
 
   // Shipping methods
   shippingMethod: {
@@ -855,8 +878,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   shippingMethodSelected: {
-    borderColor: '#0EA5E9',
-    backgroundColor: '#F0F9FF',
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
   },
   shippingIconWrap: {
     width: 40,
@@ -867,7 +890,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shippingIconWrapSelected: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#DBEAFE',
   },
   shippingInfo: { flex: 1 },
   shippingLabelRow: {
@@ -881,7 +904,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
-  shippingLabelSelected: { color: '#0EA5E9' },
+  shippingLabelSelected: { color: '#2563EB' },
   shippingBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -896,7 +919,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#DBEAFE',
     padding: 10,
     borderRadius: 10,
     marginBottom: 10,
@@ -908,7 +931,7 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginRight: 6,
   },
-  shippingFeeTextSelected: { color: '#0EA5E9' },
+  shippingFeeTextSelected: { color: '#2563EB' },
 
   // Payment methods
   paymentMethod: {
@@ -923,8 +946,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   paymentMethodSelected: {
-    borderColor: '#0EA5E9',
-    backgroundColor: '#F0F9FF',
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
   },
   paymentIconWrap: {
     width: 40,
@@ -935,7 +958,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paymentIconWrapSelected: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#DBEAFE',
   },
   paymentInfo: {
     flex: 1,
@@ -947,7 +970,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   paymentLabelSelected: {
-    color: '#0EA5E9',
+    color: '#2563EB',
   },
   paymentDesc: {
     fontSize: 12,
@@ -963,13 +986,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioSelected: {
-    borderColor: '#0EA5E9',
+    borderColor: '#2563EB',
   },
   radioInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#2563EB',
   },
 
   // Summary
@@ -1002,7 +1025,7 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0EA5E9',
+    color: '#2563EB',
   },
 
   // Bottom bar
@@ -1037,25 +1060,25 @@ const styles = StyleSheet.create({
   bottomTotalValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0EA5E9',
+    color: '#2563EB',
     marginTop: 2,
   },
   placeOrderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0EA5E9',
+    backgroundColor: '#2563EB',
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    shadowColor: '#0EA5E9',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 6,
   },
   placeOrderBtnDisabled: {
-    backgroundColor: '#BAE6FD',
+    backgroundColor: '#BFDBFE',
     shadowOpacity: 0,
     elevation: 0,
   },

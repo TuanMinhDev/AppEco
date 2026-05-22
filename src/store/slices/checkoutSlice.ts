@@ -27,6 +27,8 @@ export interface ShippingInfo {
   /** Dòng địa chỉ chi tiết gửi API (số nhà, đường) — ưu tiên khi có */
   street?: string;
   ward?: string;
+  /** Tỉnh/TP — đồng bộ với API `province` */
+  province?: string;
   city: string;
   district: string;
   /** _id địa chỉ — dùng GET shipping-options */

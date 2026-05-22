@@ -1,116 +1,166 @@
+import { AppEco } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-export default function LoginScreen() {
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+export default function AuthWelcomeScreen() {
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        <View style={styles.topSection}>
-          <View style={styles.welcomeContainer}>
-            <Text style={styles.welcomeTitle}>Chào mừng bạn</Text>
-            <Text style={styles.welcomeSubtitle}>Đến với FUSHION</Text>
-            <Text style={styles.welcomeDescription}>Khám phá những sản phẩm thời trang tuyệt vời</Text>
-          </View>
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[...AppEco.heroGradient]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + 24 }]}
+      >
+        <View style={styles.decorCircle} />
+        <View style={[styles.decorCircle, styles.decorCircleSmall]} />
+        <View style={styles.badge}>
+          <Ionicons name="leaf" size={14} color="#fff" />
+          <Text style={styles.badgeText}>Thân thiện môi trường</Text>
         </View>
+        <Text style={styles.brand}>Pine Studio</Text>
+        <Text style={styles.tagline}>Mua sắm xanh, giao nhanh, tối giản tác động.</Text>
+      </LinearGradient>
 
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={[styles.button, styles.loginButton]} onPress={() => router.push('/login')}>
-            <Text style={styles.buttonText}>Đăng nhập</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.button, styles.registerButton]} onPress={() => router.push('/register')}>
-            <Text style={styles.buttonTextRes}>Đăng ký</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 28 }]}>
+        <Text style={styles.sheetTitle}>Bắt đầu</Text>
+        <Text style={styles.sheetSub}>Đăng nhập hoặc tạo tài khoản mới để tiếp tục.</Text>
+        <TouchableOpacity
+          style={styles.btnPrimary}
+          activeOpacity={0.9}
+          onPress={() => router.push('/(auth)/login')}
+        >
+          <Text style={styles.btnPrimaryText}>Đăng nhập</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.btnSecondary}
+          activeOpacity={0.9}
+          onPress={() => router.push('/(auth)/register')}
+        >
+          <Text style={styles.btnSecondaryText}>Tạo tài khoản</Text>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppEco.background,
   },
-  container: {
+  hero: {
     flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+    justifyContent: 'flex-end',
+    borderBottomLeftRadius: AppEco.radiusXl,
+    borderBottomRightRadius: AppEco.radiusXl,
+    overflow: 'hidden',
+  },
+  decorCircle: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    top: -40,
+    right: -60,
+  },
+  decorCircleSmall: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    top: 120,
+    left: -30,
+    right: undefined,
+  },
+  badge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 80,
-    paddingBottom: 60,
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: AppEco.radiusFull,
+    marginBottom: 20,
   },
-
-  topSection: {
-    alignItems: 'center',
-  },
-
-  welcomeContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-
-  welcomeTitle: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: '#1E40AF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-
-  welcomeSubtitle: {
-    fontSize: 28,
+  badgeText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '600',
-    color: '#2563EB',
-    marginBottom: 16,
-    textAlign: 'center',
-    letterSpacing: 2,
   },
-
-  welcomeDescription: {
-    fontSize: 16,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 20,
+  brand: {
+    fontSize: 44,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
+    marginBottom: 12,
   },
-
-  buttonContainer: {
-    width: '100%',
-    gap: 20,
+  tagline: {
+    fontSize: 17,
+    lineHeight: 26,
+    color: 'rgba(255,255,255,0.92)',
+    fontWeight: '500',
+    maxWidth: 320,
   },
-
-  button: {
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 50,
+  sheet: {
+    backgroundColor: AppEco.surface,
+    marginHorizontal: 0,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    borderTopLeftRadius: AppEco.radiusXl,
+    borderTopRightRadius: AppEco.radiusXl,
+    marginTop: -20,
+    ...AppEco.shadowSoft,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: AppEco.text,
+    marginBottom: 6,
+  },
+  sheetSub: {
+    fontSize: 15,
+    color: AppEco.textSecondary,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  btnPrimary: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: AppEco.primary,
+    paddingVertical: 16,
+    borderRadius: AppEco.radiusLg,
+    marginBottom: 12,
+    ...AppEco.shadowCard,
   },
-
-  loginButton: {
-    backgroundColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  btnPrimaryText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
   },
-
-  registerButton: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: '#3B82F6',
+  btnSecondary: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: AppEco.radiusLg,
     borderWidth: 2,
+    borderColor: AppEco.border,
+    backgroundColor: AppEco.surfaceMuted,
   },
-
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  buttonTextRes : {
-    color: '#3B82F6',
-    fontSize: 16,
-    fontWeight: 'bold',
+  btnSecondaryText: {
+    color: AppEco.primary,
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

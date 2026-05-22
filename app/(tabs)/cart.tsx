@@ -1,13 +1,17 @@
 import { useDeleteCart, useListCart, useUpdateCartQuantity } from '@/api/cart/cart.api';
-import { ICart } from '@/api/cart/cart.type';
+import type { CartProductPopulated, ICart } from '@/api/cart/cart.type';
+import { useGetCurrentUser } from '@/api/user/user.api';
+import { ScreenHero, ScreenHeroChip } from '@/components/screen-hero/ScreenHero';
+import { useAppDialog } from '@/components/app-dialog/AppDialogProvider';
+import { useToast } from '@/components/toast/ToastProvider';
+import { AppEco } from '@/constants/theme';
 import { useAppDispatch } from '@/src/store';
 import { setCheckoutItems } from '@/src/store/slices/checkoutSlice';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     StyleSheet,
@@ -15,7 +19,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiErrorMessage } from '@/utils/api-error-message';
 
 const PAGE_SIZE = 10;
 
@@ -23,10 +27,42 @@ function formatPrice(price: number) {
   return price.toLocaleString('vi-VN') + 'đ';
 }
 
+function getPopulatedProduct(item: ICart): CartProductPopulated | null {
+  const p = item.productId;
+  if (p && typeof p === 'object' && 'name' in p) {
+    return p as CartProductPopulated;
+  }
+  return null;
+}
+
+function sellerIdString(sellerId: CartProductPopulated['sellerId']): string {
+  if (typeof sellerId === 'string') return sellerId;
+  if (sellerId && typeof sellerId === 'object' && '_id' in sellerId) {
+    return String(sellerId._id);
+  }
+  return '';
+}
+
 export default function CartScreen() {
+  const toast = useToast();
+  const dialog = useAppDialog();
   const dispatch = useAppDispatch();
-  const { data: cartData, isLoading, error } = useListCart();
-  const {mutate: updateQuantityMutation, isPending: isUpdatingQuantity} = useUpdateCartQuantity();
+  const { data: user, isSuccess: userOk } = useGetCurrentUser();
+  const isLoggedIn = userOk && !!user?._id;
+
+  const {
+    data: cartItemsRaw = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useListCart(isLoggedIn);
+  const {mutate: updateQuantityMutation, isPending: isUpdatingQuantity} = useUpdateCartQuantity({
+    onError: (e) => {
+      toast.showError(getApiErrorMessage(e, 'Không cập nhật được số lượng.'));
+    },
+  });
   const {mutate: deleteMutationRaw} = useDeleteCart();
   const deleteMutation = (payload: Parameters<typeof deleteMutationRaw>[0], options?: Parameters<typeof deleteMutationRaw>[1]) => {
     deleteMutationRaw(payload, options);
@@ -34,7 +70,10 @@ export default function CartScreen() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const allCartItems: ICart[] = [...(cartData?.data?.items ?? [])].reverse();
+  const allCartItems: ICart[] = useMemo(
+    () => [...cartItemsRaw].reverse().filter((item) => getPopulatedProduct(item) != null),
+    [cartItemsRaw],
+  );
   const cartItems = allCartItems.slice(0, visibleCount);
   const selectedItemsData = cartItems.filter((item: ICart) => selectedItems.includes(item._id));
   const totalPrice = selectedItemsData.reduce((sum: number, item: ICart) => sum + (item.price * item.quantity), 0);
@@ -49,52 +88,44 @@ export default function CartScreen() {
   };
 
   const handleDeleteItem = (itemId: string) => {
-    Alert.alert(
-      'Xác nhận',
-      'Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            deleteMutation({ itemIds: [itemId] }, {
-              onSuccess: () => {
-                setSelectedItems(prev => prev.filter(id => id !== itemId));
-              },
-              onError: () => {
-                Alert.alert('Lỗi', 'Không thể xóa sản phẩm');
-              }
-            });
-          }
-        }
-      ]
-    );
+    dialog.showConfirm({
+      title: 'Xác nhận',
+      message: 'Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?',
+      confirmText: 'Xóa',
+      destructive: true,
+      onConfirm: () => {
+        deleteMutation({ itemIds: [itemId] }, {
+          onSuccess: () => {
+            setSelectedItems(prev => prev.filter(id => id !== itemId));
+            toast.showSuccess('Đã xoá khỏi giỏ hàng.', { duration: 1600 });
+          },
+          onError: (e) => {
+            toast.showError(getApiErrorMessage(e, 'Không thể xóa sản phẩm.'));
+          },
+        });
+      },
+    });
   };
 
   const handleDeleteSelected = () => {
     if (selectedItems.length === 0) return;
-    Alert.alert(
-      'Xác nhận',
-      `Xóa ${selectedItems.length} sản phẩm đã chọn?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            deleteMutation({ itemIds: selectedItems }, {
-              onSuccess: () => {
-                setSelectedItems([]);
-              },
-              onError: () => {
-                Alert.alert('Lỗi', 'Không thể xóa sản phẩm');
-              }
-            });
-          }
-        }
-      ]
-    );
+    dialog.showConfirm({
+      title: 'Xác nhận',
+      message: `Xóa ${selectedItems.length} sản phẩm đã chọn?`,
+      confirmText: 'Xóa',
+      destructive: true,
+      onConfirm: () => {
+        deleteMutation({ itemIds: selectedItems }, {
+          onSuccess: () => {
+            setSelectedItems([]);
+            toast.showSuccess('Đã xoá các sản phẩm đã chọn.', { duration: 1800 });
+          },
+          onError: (e) => {
+            toast.showError(getApiErrorMessage(e, 'Không thể xóa sản phẩm.'));
+          },
+        });
+      },
+    });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -121,32 +152,42 @@ export default function CartScreen() {
 
   const handleCheckout = () => {
     if (selectedItems.length === 0) {
-      Alert.alert('Thông báo', 'Vui lòng chọn sản phẩm để thanh toán');
+      toast.showError('Vui lòng chọn sản phẩm để thanh toán');
       return;
     }
     const checkoutItems = allCartItems
       .filter((item) => selectedItems.includes(item._id))
-      .map((item) => ({
-        _id: item._id,
-        sellerId: item.productId.sellerId,
-        productId: {
-          _id: item.productId._id,
-          name: item.productId.name,
-          images: item.productId.images,
-          price: item.productId.variants?.[0]?.price ?? item.price,
-          sale: item.productId.sale ?? undefined,
-        },
-        variant: item.variant,
-        quantity: item.quantity,
-        price: item.price,
-      }));
+      .map((item) => {
+        const product = getPopulatedProduct(item);
+        if (!product) return null;
+        return {
+          _id: item._id,
+          sellerId: sellerIdString(product.sellerId),
+          productId: {
+            _id: product._id,
+            name: product.name,
+            images: product.images,
+            price: product.variants?.[0]?.price ?? item.price,
+            sale: product.sale ?? undefined,
+          },
+          variant: item.variant,
+          quantity: item.quantity,
+          price: item.price,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
+    if (checkoutItems.length === 0) {
+      toast.showError('Không đọc được thông tin sản phẩm trong giỏ.');
+      return;
+    }
     dispatch(setCheckoutItems(checkoutItems));
     router.push('/checkout');
   };
 
   const renderCartItem = ({ item }: { item: ICart }) => {
     const isSelected = selectedItems.includes(item._id);
-    const product = item.productId;
+    const product = getPopulatedProduct(item);
+    if (!product) return null;
     const image = product.images?.[0];
 
     return (
@@ -158,7 +199,7 @@ export default function CartScreen() {
           <Ionicons
             name={isSelected ? 'checkbox' : 'square-outline'}
             size={24}
-            color={isSelected ? '#0EA5E9' : '#9CA3AF'}
+            color={isSelected ? AppEco.primary : AppEco.textMuted}
           />
         </TouchableOpacity>
 
@@ -198,7 +239,7 @@ export default function CartScreen() {
                 onPress={() => handleQuantityChange(item._id, item.quantity - 1)}
                 disabled={item.quantity <= 1 || isUpdatingQuantity}
               >
-                <Ionicons name="remove" size={16} color="#0EA5E9" />
+                <Ionicons name="remove" size={16} color={AppEco.primary} />
               </TouchableOpacity>
               
               <Text style={styles.quantityText}>{item.quantity}</Text>
@@ -208,7 +249,7 @@ export default function CartScreen() {
                 onPress={() => handleQuantityChange(item._id, item.quantity + 1)}
                 disabled={isUpdatingQuantity}
               >
-                <Ionicons name="add" size={16} color="#0EA5E9" />
+                <Ionicons name="add" size={16} color={AppEco.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -224,58 +265,90 @@ export default function CartScreen() {
     );
   };
 
-  if (isLoading) {
+  if (!isLoggedIn) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Đang tải giỏ hàng...</Text>
+      <View style={styles.safeArea}>
+        <ScreenHero
+          title="Giỏ hàng"
+          subtitle="Đăng nhập để xem và thanh toán sản phẩm"
+          balanceBack={false}
+        />
+        <View style={styles.guestContainer}>
+          <MaterialCommunityIcons name="cart-outline" size={56} color={AppEco.textMuted} />
+          <Text style={styles.guestTitle}>Đăng nhập để dùng giỏ hàng</Text>
+          <TouchableOpacity
+            style={styles.shoppingBtn}
+            onPress={() =>
+              router.push(`/(auth)/login?redirect=${encodeURIComponent('/(tabs)/cart')}` as never)
+            }
+          >
+            <Text style={styles.shoppingBtnText}>Đăng nhập</Text>
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  if (error) {
+  if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
+        <ScreenHero title="Giỏ hàng" subtitle="Đang tải..." balanceBack={false} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={AppEco.primary} />
+          <Text style={styles.loadingText}>Đang tải giỏ hàng...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={styles.safeArea}>
+        <ScreenHero title="Giỏ hàng" balanceBack={false} />
         <View style={styles.errorContainer}>
-          <MaterialCommunityIcons name="cart-off" size={60} color="#FF6B6B" />
+          <MaterialCommunityIcons name="cart-off" size={60} color={AppEco.danger} />
           <Text style={styles.errorText}>Không thể tải giỏ hàng</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => window.location.reload()}>
-            <Text style={styles.retryBtnText}>Thử lại</Text>
+          <Text style={styles.errorSub}>
+            {getApiErrorMessage(error, 'Kiểm tra mạng hoặc đăng nhập lại.')}
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => void refetch()}>
+            <Text style={styles.retryBtnText}>{isFetching ? 'Đang thử…' : 'Thử lại'}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Giỏ hàng</Text>
-          {allCartItems.length > 0 && (
-            <Text style={styles.headerSub}>{allCartItems.length} sản phẩm</Text>
-          )}
-        </View>
-        <View style={styles.headerActions}>
-          {allCartItems.length > 0 && (
-            <TouchableOpacity style={styles.headerBtn} onPress={toggleSelectAll}>
-              <Ionicons
-                name={selectedItems.length === allCartItems.length ? 'checkbox-outline' : 'square-outline'}
-                size={16}
-                color="#0EA5E9"
-              />
-              <Text style={styles.headerBtnText}>
-                {selectedItems.length === allCartItems.length ? 'Bỏ chọn' : 'Chọn tất cả'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    <View style={styles.safeArea}>
+      <ScreenHero
+        title="Giỏ hàng"
+        subtitle={
+          allCartItems.length > 0
+            ? `${allCartItems.length} sản phẩm`
+            : 'Chọn sản phẩm để thanh toán'
+        }
+        balanceBack={false}
+        rightAction={
+          allCartItems.length > 0 ? (
+            <ScreenHeroChip
+              icon={
+                selectedItems.length === allCartItems.length
+                  ? 'checkbox-outline'
+                  : 'square-outline'
+              }
+              label={
+                selectedItems.length === allCartItems.length ? 'Bỏ chọn' : 'Chọn tất cả'
+              }
+              onPress={toggleSelectAll}
+            />
+          ) : undefined
+        }
+      />
 
       {allCartItems.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="cart-outline" size={80} color="#9CA3AF" />
+          <MaterialCommunityIcons name="cart-outline" size={80} color={AppEco.textMuted} />
           <Text style={styles.emptyTitle}>Giỏ hàng trống</Text>
           <Text style={styles.emptySubtitle}>Thêm sản phẩm để bắt đầu mua sắm</Text>
           <TouchableOpacity
@@ -299,7 +372,7 @@ export default function CartScreen() {
             ListFooterComponent={
               visibleCount < allCartItems.length ? (
                 <View style={styles.loadMoreIndicator}>
-                  <ActivityIndicator size="small" color="#0EA5E9" />
+                  <ActivityIndicator size="small" color={AppEco.primary} />
                   <Text style={styles.loadMoreText}>Đang tải thêm...</Text>
                 </View>
               ) : null
@@ -334,85 +407,61 @@ export default function CartScreen() {
           )}
         </>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
-  },
-  
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#111827',
-  },
-  headerSub: {
-    fontSize: 13,
-    color: '#0EA5E9',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  headerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  headerBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0EA5E9',
+    backgroundColor: AppEco.background,
   },
 
   // Loading & Error States
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  errorContainer: {
+  guestContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
     gap: 16,
   },
+  guestTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: AppEco.text,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: AppEco.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 12,
+  },
   errorText: {
     fontSize: 16,
-    color: '#FF6B6B',
-    fontWeight: '600',
+    color: AppEco.danger,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  errorSub: {
+    fontSize: 14,
+    color: AppEco.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   retryBtn: {
-    backgroundColor: '#0EA5E9',
+    backgroundColor: AppEco.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 24,
@@ -433,15 +482,15 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#374151',
+    color: AppEco.text,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: AppEco.textMuted,
     textAlign: 'center',
   },
   shoppingBtn: {
-    backgroundColor: '#0EA5E9',
+    backgroundColor: AppEco.primary,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 24,
@@ -470,7 +519,7 @@ const styles = StyleSheet.create({
   },
   loadMoreText: {
     fontSize: 13,
-    color: '#0EA5E9',
+    color: AppEco.primary,
     fontWeight: '600',
   },
 
@@ -478,16 +527,12 @@ const styles = StyleSheet.create({
   cartItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppEco.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: 'rgba(103, 232, 249, 0.3)',
-    shadowColor: '#67E8F9',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: AppEco.borderSoft,
+    ...AppEco.shadowCard,
   },
   checkbox: {
     marginRight: 12,
@@ -522,7 +567,7 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: AppEco.text,
     marginBottom: 4,
   },
   variantInfo: {
@@ -530,7 +575,7 @@ const styles = StyleSheet.create({
   },
   variantText: {
     fontSize: 12,
-    color: '#6B7280',
+    color: AppEco.textSecondary,
   },
   priceRow: {
     marginBottom: 8,
@@ -538,7 +583,7 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0EA5E9',
+    color: AppEco.primary,
   },
   quantityControls: {
     flexDirection: 'row',
@@ -549,14 +594,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+    backgroundColor: AppEco.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantityText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: AppEco.text,
     minWidth: 20,
     textAlign: 'center',
   },
@@ -566,11 +611,11 @@ const styles = StyleSheet.create({
 
   // Bottom Bar
   bottomBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: AppEco.surface,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1.5,
-    borderTopColor: 'rgba(103, 232, 249, 0.3)',
+    borderTopColor: AppEco.borderSoft,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -585,12 +630,12 @@ const styles = StyleSheet.create({
   },
   selectedCount: {
     fontSize: 14,
-    color: '#6B7280',
+    color: AppEco.textSecondary,
   },
   totalPrice: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0EA5E9',
+    color: AppEco.primary,
   },
   bottomActions: {
     flexDirection: 'row',
@@ -608,14 +653,14 @@ const styles = StyleSheet.create({
   checkoutBtn: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#0EA5E9',
+    backgroundColor: AppEco.primary,
     borderRadius: 24,
     paddingVertical: 14,
     paddingHorizontal: 24,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    shadowColor: '#0EA5E9',
+    shadowColor: AppEco.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,

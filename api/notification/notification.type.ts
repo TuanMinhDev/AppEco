@@ -1,66 +1,56 @@
-export type Notification = {
+/** Khớp FE_NOTIFICATION_API.md — dùng `message`, không dùng `content`. */
+
+export type NotificationItemType =
+  | 'order'
+  | 'payment'
+  | 'promotion'
+  | 'system'
+  | 'comment'
+  | 'favorite'
+  | 'general';
+
+export interface NotificationItem {
   _id: string;
-  userId: string;
   title: string;
   message: string;
-  type: 'order' | 'payment' | 'promotion' | 'system';
+  type: NotificationItemType | string;
+  relatedId?: string;
+  relatedModel?: string;
   isRead: boolean;
+  priority?: string;
+  actionUrl?: string;
+  actionText?: string;
+  imageUrl?: string;
+  metadata?: Record<string, unknown>;
+  expiresAt?: string | null;
+  sentAt: string;
+  readAt?: string | null;
   createdAt: string;
-  updatedAt: string;
-};
+}
 
-export type CreateNotificationPayload = {
-  userId: string;
-  title: string;
+export interface NotificationListPagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface NotificationListResponse {
   message: string;
-  type: 'order' | 'payment' | 'promotion' | 'system';
-};
-
-export type CreateBulkNotificationPayload = {
-  notifications: Omit<CreateNotificationPayload, 'userId'>[];
-  userIds: string[];
-};
-
-export type GetNotificationResponse = {
-  message: string;
-  notification: Notification;
-};
-
-export type GetNotificationsByUserResponse = {
-  message: string;
-  notifications: Notification[];
-};
-
-export type GetUnreadCountResponse = {
-  message: string;
+  notifications: NotificationItem[];
+  pagination: NotificationListPagination;
   unreadCount: number;
-};
+}
 
-export type CreateNotificationResponse = {
+export interface MarkNotificationReadResponse {
   message: string;
-  notification: Notification;
-};
+  notification: NotificationItem;
+}
 
-export type CreateBulkNotificationResponse = {
+export interface MarkAllNotificationsReadResponse {
   message: string;
-  notifications: Notification[];
-};
+}
 
-export type MarkAsReadResponse = {
+export interface DeleteNotificationResponse {
   message: string;
-  notification: Notification;
-};
-
-export type MarkAllAsReadResponse = {
-  message: string;
-  updatedCount: number;
-};
-
-export type DeleteNotificationResponse = {
-  message: string;
-};
-
-export type ClearAllNotificationsResponse = {
-  message: string;
-  deletedCount: number;
-};
+}

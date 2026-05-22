@@ -1,3 +1,4 @@
+import { AppEco } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
@@ -75,7 +76,7 @@ function BaseAppInput({ label, errorText, style, secureTextEntry, ...props }: Ow
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.input, style]}
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={AppEco.textMuted}
           secureTextEntry={isPassword && !isPasswordVisible}
           {...props}
         />
@@ -87,7 +88,7 @@ function BaseAppInput({ label, errorText, style, secureTextEntry, ...props }: Ow
             <Ionicons
               name={isPasswordVisible ? 'eye-off' : 'eye'}
               size={20}
-              color="#64748B"
+              color={AppEco.textSecondary}
             />
           </TouchableOpacity>
         )}
@@ -103,10 +104,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#3B82F6',
-    paddingLeft: 10
+    color: AppEco.primary,
+    paddingLeft: 4,
   },
   inputContainer: {
     position: 'relative',
@@ -114,14 +115,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
-    height: 50,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    borderRadius: 20,
-    paddingHorizontal: 12,
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: AppEco.border,
+    borderRadius: AppEco.radiusLg,
+    paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: '#F8FAFC',
-    color: '#1E293B',
+    backgroundColor: AppEco.surface,
+    color: AppEco.text,
     flex: 1,
   },
   eyeIcon: {
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   error: {
-    color: '#DC2626',
+    color: AppEco.danger,
     fontSize: 12,
   },
 });

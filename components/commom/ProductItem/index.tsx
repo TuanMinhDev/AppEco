@@ -1,8 +1,16 @@
 import type { Product } from "@/api/product/product.type";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
 import {
+  useFavoritesList,
+  useToggleProductFavorite,
+} from "@/api/favorite/favorite.api";
+import { useGetCurrentUser } from "@/api/user/user.api";
+import { useToast } from "@/components/toast/ToastProvider";
+import { AppEco } from "@/constants/theme";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { router, type Href } from "expo-router";
+import React, { useCallback, useMemo } from "react";
+import {
+  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -11,13 +19,11 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { getApiErrorMessage } from "@/utils/api-error-message";
+
 const PRODUCT_CARD_IMAGE_HEIGHT = 200;
-const PRODUCT_CARD_INFO_HEIGHT = 96;
-const PRODUCT_CARD_HEIGHT =
-  PRODUCT_CARD_IMAGE_HEIGHT + PRODUCT_CARD_INFO_HEIGHT;
 const PRODUCT_NAME_LINES = 2;
 const PRODUCT_NAME_LINE_HEIGHT = 22;
-const PRODUCT_NAME_SLOT_HEIGHT = PRODUCT_NAME_LINES * PRODUCT_NAME_LINE_HEIGHT;
 
 function formatPrice(price: number) {
   return price.toLocaleString("vi-VN") + "đ";
@@ -30,7 +36,48 @@ export type ProductItemProps = {
 };
 
 export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
-  const [isLiked, setIsLiked] = useState(false);
+  const toast = useToast();
+  const { data: me, isSuccess: meOk } = useGetCurrentUser();
+  const isLoggedIn = meOk && !!me?._id;
+  const { data: favRes, isLoading: favListLoading } = useFavoritesList(isLoggedIn);
+  const { mutate: toggleFavorite, isPending: favMutating } = useToggleProductFavorite();
+
+  const isFavorite = useMemo(() => {
+    if (!isLoggedIn) return false;
+    const list = favRes?.favorites ?? [];
+    return list.some((p) => p._id === product._id);
+  }, [isLoggedIn, favRes?.favorites, product._id]);
+
+  const handleLikePress = useCallback(() => {
+    const pid = product._id;
+    if (!pid) return;
+    if (!isLoggedIn) {
+      const path = `/(auth)/login?redirect=${encodeURIComponent(`/product/${pid}`)}`;
+      router.push(path as Href);
+      return;
+    }
+    if (favListLoading || favMutating) return;
+    toggleFavorite(
+      { productId: pid, remove: isFavorite },
+      {
+        onError: (e: unknown) => {
+          toast.showError(
+            getApiErrorMessage(
+              e,
+              isFavorite ? "Không thể bỏ yêu thích." : "Không thể thêm yêu thích."
+            )
+          );
+        },
+      }
+    );
+  }, [
+    product._id,
+    isLoggedIn,
+    favListLoading,
+    favMutating,
+    isFavorite,
+    toggleFavorite,
+  ]);
 
   const originalPrice = product.variants?.[0]?.price ?? 0;
   const salePrice =
@@ -38,6 +85,8 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
       ? originalPrice * (1 - product.sale / 100)
       : null;
   const image = product.images?.[0];
+
+  const likeLabel = isFavorite ? "Bỏ yêu thích" : "Thêm yêu thích";
 
   return (
     <View
@@ -51,7 +100,7 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
     >
       <Pressable
         style={styles.cardPressable}
-        onPress={() => router.push(`/product/${product._id}`)}
+        onPress={() => router.push(`/product/${product._id}` as Href)}
         android_ripple={{ color: "rgba(255,255,255,0.12)" }}
       >
         <View style={styles.imageContainer}>
@@ -104,7 +153,7 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
             )}
           </View>
           <View style={styles.deliveryRow}>
-            <MaterialCommunityIcons name="truck-delivery" size={12} color="#67E8F9" />
+            <MaterialCommunityIcons name="truck-delivery" size={12} color={AppEco.primaryLight} />
             <Text style={styles.deliveryText}>1-3 ngày</Text>
           </View>
         </View>
@@ -112,15 +161,22 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
 
       <Pressable
         style={styles.likeBtn}
-        onPress={() => setIsLiked(!isLiked)}
+        onPress={handleLikePress}
+        disabled={isLoggedIn && (favListLoading || favMutating)}
         hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`${likeLabel}, ${product.name}`}
         android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
       >
-        <Ionicons
-          name={isLiked ? "heart" : "heart-outline"}
-          size={16}
-          color={isLiked ? "#FF6B6B" : "#fff"}
-        />
+        {isLoggedIn && (favListLoading || favMutating) ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Ionicons
+            name={isFavorite ? "heart" : "heart-outline"}
+            size={16}
+            color={isFavorite ? AppEco.sale : "#fff"}
+          />
+        )}
       </Pressable>
     </View>
   );
@@ -129,16 +185,12 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
 const styles = StyleSheet.create({
   card: {
     position: "relative",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: AppEco.surface,
+    borderRadius: AppEco.radiusMd,
     overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "rgba(103, 232, 249, 0.3)",
-    shadowColor: "#67E8F9",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: AppEco.borderSoft,
+    ...AppEco.shadowCard,
   },
   cardPressable: {
     flex: 1,
@@ -162,7 +214,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: "#FF6B6B",
+    backgroundColor: AppEco.sale,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -193,13 +245,12 @@ const styles = StyleSheet.create({
   },
   nameSlot: {
     minHeight: PRODUCT_NAME_LINE_HEIGHT,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   productName: {
-    fontSize: 16,
-    fontWeight: "400",
-    color: "#000000",
-    textTransform: 'lowercase',
+    fontSize: 15,
+    fontWeight: "600",
+    color: AppEco.text,
   },
   priceRow: {
     flexDirection: "row",
@@ -209,38 +260,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   salePrice: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#67E8F9",
+    color: AppEco.primary,
     flexShrink: 1,
   },
   originalPrice: {
-    fontSize: 14,
-    color: "#94A3B8",
+    fontSize: 13,
+    color: AppEco.textMuted,
     textDecorationLine: "line-through",
     flexShrink: 1,
   },
   normalPrice: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#67E8F9",
+    color: AppEco.primary,
     flexShrink: 1,
   },
   deliveryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: 6,
   },
   deliveryText: {
     fontSize: 11,
-    color: '#67E8F9',
-    fontWeight: '500',
-  },
-  priceRowNoMargin: {
-    marginTop: 0,
-  },
-  deliveryRowNoMargin: {
-    marginTop: 2,
+    color: AppEco.primaryLight,
+    fontWeight: "600",
   },
 });

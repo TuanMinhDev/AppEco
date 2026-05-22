@@ -31,7 +31,7 @@ export interface Product {
   _id: string;
   name: string;
   description: string;
-  categoryId: string;
+  categoryId: string | { _id: string; name: string; description?: string };
   sellerId: string | SellerSummary;
   sale?: number | null;
   variants: ProductVariant[];

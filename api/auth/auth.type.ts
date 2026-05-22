@@ -1,4 +1,5 @@
-export type UserRole = 'user' | 'seller' | 'admin';
+/** Theo FE_AI_API.md: chỉ `admin` và `user` — không còn `seller`. */
+export type UserRole = 'user' | 'admin';
 
 export interface LoginPayload {
   identifier: string;
@@ -10,7 +11,6 @@ export interface RegisterPayload {
   password: string;
   name: string;
   phoneNumber: string;
-  role?: UserRole;
 }
 
 export interface ChangePasswordPayload {

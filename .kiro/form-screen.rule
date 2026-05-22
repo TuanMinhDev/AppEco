@@ -1,0 +1,159 @@
+# AppEco — Màn form & auth (chuẩn Login / Home)
+
+Tham chiếu: `app/(auth)/login.tsx`, `app/(auth)/register.tsx`, `app/(tabs)/index.tsx` (FormProvider), `components/app-input.tsx`, `constants/theme.ts`, `.kiro/design-system.rule`.
+
+---
+
+## Kiến trúc bắt buộc
+
+### 1. Tách shell form và nội dung
+
+```tsx
+// Screen export — chỉ khởi tạo form
+export default function XxxScreen() {
+  const form = useForm<XxxForm>({ defaultValues: { /* ... */ } });
+  return (
+    <FormProvider {...form}>
+      <XxxFormContent />
+    </FormProvider>
+  );
+}
+
+// Component con — dùng useFormContext, mutation, UI
+function XxxFormContent() {
+  const { control, handleSubmit } = useFormContext<XxxForm>();
+  // ...
+}
+```
+
+- **Luôn** bọc bằng `FormProvider {...form}` (hoặc `FormProvider {...methods}` như Home).
+- **Không** truyền `control` từ parent xuống nhiều tầng — con dùng `useFormContext`.
+- Home: `const methods = useForm<...>({ defaultValues })` → `<FormProvider {...methods}>`.
+
+### 2. React Hook Form
+
+| Việc | Cách làm |
+|------|----------|
+| Input | `<AppInput name="..." control={control} rules={{...}} />` |
+| Submit | `handleSubmit(onSubmit)` trên `TouchableOpacity` |
+| Validate | `rules` trên `AppInput`, message tiếng Việt |
+| Mảng field | `useFieldArray` + `useFormContext` (xem product-form) |
+| Watch field | `watch('field')` trong `FormContent` |
+
+- Khai báo type form riêng: `type XxxForm = { ... }`.
+- `defaultValues` khai báo trong `useForm` ở screen shell.
+
+### 3. React Query (TanStack)
+
+| Việc | Cách làm |
+|------|----------|
+| Đọc dữ liệu | `useQuery` / hook `useXxx()` trong `api/**/*.api.ts` |
+| Ghi / submit | `useMutation` / hook `useCreateXxx`, `useUpdateXxx` |
+| Sau thành công | `onSuccess` của mutation: `router`, `toast`, invalidate trong hook API (không tự gọi fetch thủ công) |
+| Lỗi API | `toast.showError(getApiErrorMessage(error, '...'))` |
+
+```tsx
+const mutation = useLogin({
+  onSuccess: () => router.replace('/(tabs)'),
+  onError: (error) => toast.showError(getApiErrorMessage(error, '...')),
+});
+
+const onSubmit = (data: LoginForm) => {
+  mutation.mutate({ identifier: data.account, password: data.password });
+};
+```
+
+- **Không** gọi `axios`/`fetch` trực tiếp trong screen — qua `api/*/*.api.ts`.
+- Nút submit: `disabled={mutation.isPending}`, label `Đang xử lý…` khi pending.
+
+### 4. Cấm `useEffect` trên màn form mới
+
+- **Không** dùng `useEffect` để `reset` form khi query trả về, sync state, hay side-effect sau mount.
+- Form edit / prefill dữ liệu:
+
+```tsx
+function EditScreen({ id }: { id: string }) {
+  const { data, isLoading } = useDetail(id, !!id);
+  if (isLoading || !data) return <Loading />;
+  return <EditFormContent key={data._id} initial={mapToForm(data)} />;
+}
+
+function EditFormContent({ initial }: { initial: XxxForm }) {
+  const form = useForm<XxxForm>({ defaultValues: initial });
+  return (
+    <FormProvider {...form}>
+      <XxxFormFields />
+    </FormProvider>
+  );
+}
+```
+
+- Hoặc chỉ render `FormProvider` khi `data` đã có; `key={id}` để remount khi đổi bản ghi.
+- Timer / carousel (như banner Home) là ngoại lệ UI — **không** áp dụng cho form CRUD mới.
+
+---
+
+## Layout auth (theo Login)
+
+```
+root (flex:1, backgroundColor: AppEco.background)
+├── LinearGradient hero (AppEco.heroGradient, radiusXl bo góc dưới)
+│   ├── backBtn (40×40, rgba white 0.2)
+│   ├── heroTitle (32, 800, #fff)
+│   └── heroSub (16, rgba white 0.9)
+└── SafeAreaView sheet (AppEco.background)
+    └── form (paddingH 22, paddingTop 28, gap 18)
+        ├── AppInput × n
+        ├── primaryBtn (AppEco.primary, radiusLg, shadowCard)
+        ├── footer link (textSecondary + primary link)
+        ├── dividerRow (tùy chọn)
+        └── socialRow (tùy chọn)
+```
+
+- `useSafeAreaInsets()` cho `paddingTop` hero và `paddingBottom` sheet.
+- Back: `router.replace` về màn auth trước.
+- Màu / radius / shadow: tuân `.kiro/design-system.rule` — `import { AppEco } from '@/constants/theme'`.
+
+---
+
+## Checklist trước khi merge
+
+- [ ] `FormProvider` + `useForm` ở shell; `useFormContext` ở content
+- [ ] Submit qua `useMutation` hook trong `api/`
+- [ ] `AppInput` + `control` + `rules`
+- [ ] Toast lỗi: `getApiErrorMessage`
+- [ ] Không `useEffect` trên form (prefill bằng `key` + `defaultValues` / render có điều kiện)
+- [ ] UI auth/form dùng `AppEco.*`, không hardcode palette blue/gray
+- [ ] `accessibilityRole` / `accessibilityLabel` cho nút back (Login)
+
+---
+
+## Anti-patterns
+
+```tsx
+// ❌ useState cho từng field text
+const [email, setEmail] = useState('');
+
+// ❌ useEffect reset khi data load
+useEffect(() => { reset(data); }, [data]);
+
+// ❌ fetch trong component
+useEffect(() => { api.get(...) }, []);
+
+// ❌ submit không qua handleSubmit
+onPress={() => mutation.mutate({ email })}
+
+// ❌ FormProvider thiếu — truyền control props lòng vòng
+```
+
+```tsx
+// ✅ Chuẩn Login
+export default function LoginScreen() {
+  const form = useForm<LoginForm>({ defaultValues: { account: '', password: '' } });
+  return (
+    <FormProvider {...form}>
+      <LoginFormContent />
+    </FormProvider>
+  );
+}
+```

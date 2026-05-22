@@ -1,29 +1,33 @@
 import {
-  useDeleteAddress,
-  useListAddress,
-  useSetDefaultAddress,
+    useDeleteAddress,
+    useListAddress,
+    useSetDefaultAddress,
 } from '@/api/address/address.api';
 import { AddressType, IAddress } from '@/api/address/address.type';
+import { useGetCurrentUser } from '@/api/user/user.api';
+import { useAppDialog } from '@/components/app-dialog/AppDialogProvider';
+import { useToast } from '@/components/toast/ToastProvider';
+import { ScreenHero, ScreenHeroAddButton } from '@/components/screen-hero/ScreenHero';
+import { AppEco } from '@/constants/theme';
 import { useAppDispatch } from '@/src/store';
 import { setShippingInfo } from '@/src/store/slices/checkoutSlice';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiErrorMessage } from '@/utils/api-error-message';
 
 const ADDRESS_TYPE_MAP: Record<AddressType, { label: string; icon: 'home-outline' | 'business-outline' | 'cube-outline'; color: string; bg: string }> = {
-  home:      { label: 'Nhà riêng', icon: 'home-outline',     color: '#0EA5E9', bg: '#E0F2FE' },
+  home:      { label: 'Nhà riêng', icon: 'home-outline',     color: AppEco.primary, bg: AppEco.primaryMuted },
   office:    { label: 'Văn phòng', icon: 'business-outline', color: '#7C3AED', bg: '#EDE9FE' },
-  warehouse: { label: 'Kho hàng',  icon: 'cube-outline',     color: '#D97706', bg: '#FEF3C7' },
+  warehouse: { label: 'Kho hàng',  icon: 'cube-outline',     color: AppEco.accent, bg: '#FEF3C7' },
 };
 
 function AddressCard({
@@ -35,6 +39,7 @@ function AddressCard({
   onDelete,
   isSettingDefault,
   isDeletingId,
+  canDelete,
 }: {
   item: IAddress;
   isDefault: boolean;
@@ -44,6 +49,7 @@ function AddressCard({
   onDelete: (id: string) => void;
   isSettingDefault: boolean;
   isDeletingId: string | null;
+  canDelete: boolean;
 }) {
   return (
     <TouchableOpacity
@@ -53,7 +59,7 @@ function AddressCard({
     >
       {isDefault && (
         <View style={styles.defaultBadge}>
-          <Ionicons name="checkmark-circle" size={13} color="#0EA5E9" />
+          <Ionicons name="checkmark-circle" size={13} color={AppEco.primary} />
           <Text style={styles.defaultBadgeText}>Mặc định</Text>
         </View>
       )}
@@ -63,14 +69,14 @@ function AddressCard({
           <Ionicons
             name="location"
             size={20}
-            color={isDefault ? '#0EA5E9' : '#9CA3AF'}
+            color={isDefault ? AppEco.primary : AppEco.textMuted}
           />
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardName}>{item.fullName}</Text>
           <Text style={styles.cardPhone}>{item.phoneNumber}</Text>
           <Text style={styles.cardAddr} numberOfLines={3}>
-            {item.street}, {item.ward}, {item.district}, {item.province}
+            {[item.street, item.ward, item.district, item.province].filter(Boolean).join(', ')}
           </Text>
           {(() => {
             const t = ADDRESS_TYPE_MAP[item.type] ?? ADDRESS_TYPE_MAP.home;
@@ -84,7 +90,7 @@ function AddressCard({
         </View>
         {isSelectMode && (
           <View style={styles.selectRadio}>
-            <Ionicons name="chevron-forward" size={18} color="#0EA5E9" />
+            <Ionicons name="chevron-forward" size={18} color={AppEco.primary} />
           </View>
         )}
       </View>
@@ -99,10 +105,10 @@ function AddressCard({
               activeOpacity={0.7}
             >
               {isSettingDefault ? (
-                <ActivityIndicator size="small" color="#0EA5E9" />
+                <ActivityIndicator size="small" color={AppEco.primary} />
               ) : (
                 <>
-                  <Ionicons name="star-outline" size={14} color="#0EA5E9" />
+                  <Ionicons name="star-outline" size={14} color={AppEco.primary} />
                   <Text style={styles.actionBtnText}>Đặt mặc định</Text>
                 </>
               )}
@@ -114,22 +120,28 @@ function AddressCard({
             onPress={() => router.push((`/add-address?id=${item._id}`) as any)}
             activeOpacity={0.7}
           >
-            <Ionicons name="pencil-outline" size={14} color="#0EA5E9" />
+            <Ionicons name="pencil-outline" size={14} color={AppEco.primary} />
             <Text style={styles.actionBtnText}>Sửa</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnDanger]}
             onPress={() => onDelete(item._id)}
-            disabled={isDeletingId === item._id}
+            disabled={isDeletingId === item._id || !canDelete}
             activeOpacity={0.7}
           >
             {isDeletingId === item._id ? (
-              <ActivityIndicator size="small" color="#EF4444" />
+              <ActivityIndicator size="small" color={AppEco.danger} />
             ) : (
               <>
-                <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                <Text style={[styles.actionBtnText, styles.actionBtnTextDanger]}>
+                <Ionicons name="trash-outline" size={14} color={canDelete ? AppEco.danger : AppEco.textMuted} />
+                <Text
+                  style={[
+                    styles.actionBtnText,
+                    styles.actionBtnTextDanger,
+                    !canDelete && { color: AppEco.textMuted },
+                  ]}
+                >
                   Xoá
                 </Text>
               </>
@@ -153,9 +165,14 @@ function AddressCard({
 }
 
 export default function AddressesScreen() {
+  const toast = useToast();
+  const dialog = useAppDialog();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isSelectMode = mode === 'select';
   const dispatch = useAppDispatch();
+
+  const { data: me } = useGetCurrentUser();
+  const isAdmin = me?.role === 'admin';
 
   const { data: addressesData, isLoading } = useListAddress();
   const addresses: IAddress[] = addressesData?.data?.items ?? [];
@@ -167,18 +184,24 @@ export default function AddressesScreen() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const { mutate: setDefault } = useSetDefaultAddress({
-    onSuccess: () => setSettingDefaultId(null),
-    onError: () => {
+    onSuccess: () => {
       setSettingDefaultId(null);
-      Alert.alert('Lỗi', 'Không thể đặt địa chỉ mặc định. Vui lòng thử lại.');
+      toast.showSuccess('Đã đặt địa chỉ mặc định.', { duration: 1800 });
+    },
+    onError: (e) => {
+      setSettingDefaultId(null);
+      toast.showError(getApiErrorMessage(e, 'Không thể đặt địa chỉ mặc định. Vui lòng thử lại.'));
     },
   });
 
   const { mutate: deleteAddress } = useDeleteAddress({
-    onSuccess: () => setDeletingId(null),
-    onError: () => {
+    onSuccess: () => {
       setDeletingId(null);
-      Alert.alert('Lỗi', 'Không thể xoá địa chỉ. Vui lòng thử lại.');
+      toast.showSuccess('Đã xoá địa chỉ.', { duration: 1800 });
+    },
+    onError: (e) => {
+      setDeletingId(null);
+      toast.showError(getApiErrorMessage(e, 'Không thể xoá địa chỉ. Vui lòng thử lại.'));
     },
   });
 
@@ -188,17 +211,24 @@ export default function AddressesScreen() {
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert('Xoá địa chỉ', 'Bạn có chắc muốn xoá địa chỉ này?', [
-      { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Xoá',
-        style: 'destructive',
-        onPress: () => {
-          setDeletingId(id);
-          deleteAddress(id);
-        },
+    if (isAdmin) {
+      dialog.showMessage({
+        title: 'Không thể xoá',
+        message:
+          'Tài khoản admin chỉ có một địa chỉ kho — chỉ được sửa bằng chức năng Sửa, không xoá.',
+      });
+      return;
+    }
+    dialog.showConfirm({
+      title: 'Xoá địa chỉ',
+      message: 'Bạn có chắc muốn xoá địa chỉ này?',
+      confirmText: 'Xoá',
+      destructive: true,
+      onConfirm: () => {
+        setDeletingId(id);
+        deleteAddress(id);
       },
-    ]);
+    });
   };
 
   const handleSelectAddress = (addr: IAddress) => {
@@ -208,9 +238,10 @@ export default function AddressesScreen() {
         phone: addr.phoneNumber,
         street: addr.street,
         ward: addr.ward,
-        address: `${addr.street}, ${addr.ward}, ${addr.district}, ${addr.province}`,
+        province: addr.province,
+        address: [addr.street, addr.ward, addr.district, addr.province].filter(Boolean).join(', '),
         city: addr.province,
-        district: addr.district,
+        district: addr.district ?? '',
         addressId: addr._id,
         postalCode: '',
         addressType: addr.type ?? 'home',
@@ -236,44 +267,32 @@ export default function AddressesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color="#111827" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isSelectMode ? 'Chọn địa chỉ giao hàng' : 'Địa chỉ của tôi'}
-        </Text>
-        {isSelectMode ? (
-          <View style={styles.backBtn} />
-        ) : (
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => router.push('/add-address' as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={22} color="#0EA5E9" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {isSelectMode && (
-        <View style={styles.selectBanner}>
-          <Ionicons name="information-circle-outline" size={16} color="#0284C7" />
-          <Text style={styles.selectBannerText}>
-            Chạm vào địa chỉ để chọn làm địa chỉ giao hàng
-          </Text>
-        </View>
-      )}
+    <View style={styles.root}>
+      <ScreenHero
+        title={isSelectMode ? 'Chọn địa chỉ giao hàng' : 'Địa chỉ của tôi'}
+        subtitle={
+          isSelectMode
+            ? 'Chạm vào địa chỉ để chọn làm địa chỉ giao hàng'
+            : 'Quản lý địa chỉ nhận hàng của bạn'
+        }
+        onBack={() => router.back()}
+        rightAction={
+          isSelectMode ? undefined : (
+            <ScreenHeroAddButton
+              label="Thêm địa chỉ"
+              onPress={() => router.push('/add-address' as any)}
+            />
+          )
+        }
+      />
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#0EA5E9" />
+          <ActivityIndicator size="large" color={AppEco.primary} />
         </View>
       ) : addresses.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="location-outline" size={60} color="#D1D5DB" />
+          <Ionicons name="location-outline" size={60} color={AppEco.textMuted} />
           <Text style={styles.emptyText}>Chưa có địa chỉ nào</Text>
           <Text style={styles.emptySubText}>Thêm địa chỉ để tiện đặt hàng</Text>
           <TouchableOpacity
@@ -310,6 +329,7 @@ export default function AddressesScreen() {
                 onDelete={handleDelete}
                 isSettingDefault={settingDefaultId === addr._id}
                 isDeletingId={deletingId}
+                canDelete={!isAdmin}
               />
             );
           }}
@@ -321,106 +341,58 @@ export default function AddressesScreen() {
                 activeOpacity={0.8}
               >
                 <View style={styles.newAddressBtnIcon}>
-                  <Ionicons name="add" size={20} color="#0EA5E9" />
+                  <Ionicons name="add" size={20} color={AppEco.primary} />
                 </View>
                 <View style={styles.newAddressBtnBody}>
                   <Text style={styles.newAddressBtnLabel}>Thêm địa chỉ mới</Text>
                   <Text style={styles.newAddressBtnSub}>Không tìm thấy địa chỉ phù hợp?</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+                <Ionicons name="chevron-forward" size={16} color={AppEco.textMuted} />
               </TouchableOpacity>
             ) : null
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFF' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F8FAFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#F0F9FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
-
-  selectBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#E0F2FE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#BAE6FD',
-  },
-  selectBannerText: { fontSize: 13, color: '#0284C7', fontWeight: '500', flex: 1 },
+  root: { flex: 1, backgroundColor: AppEco.background },
 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
-  emptyText: { fontSize: 16, fontWeight: '700', color: '#6B7280', marginTop: 8 },
-  emptySubText: { fontSize: 13, color: '#9CA3AF' },
+  emptyText: { fontSize: 16, fontWeight: '700', color: AppEco.textSecondary, marginTop: 8 },
+  emptySubText: { fontSize: 13, color: AppEco.textMuted },
   emptyAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 20,
-    backgroundColor: '#0EA5E9',
+    backgroundColor: AppEco.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: AppEco.radiusMd,
+    ...AppEco.shadowCard,
   },
   emptyAddBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
   list: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 8 },
 
   sectionHeader: { marginTop: 16, marginBottom: 8 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: AppEco.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: AppEco.surface,
+    borderRadius: AppEco.radiusMd,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    borderColor: AppEco.borderSoft,
+    ...AppEco.shadowCard,
   },
   cardDefault: {
-    borderColor: '#BAE6FD',
-    shadowColor: '#0EA5E9',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    borderColor: AppEco.border,
+    ...AppEco.shadowSoft,
   },
 
   defaultBadge: {
@@ -428,29 +400,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    backgroundColor: '#F0F9FF',
+    backgroundColor: AppEco.primaryMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     marginBottom: 10,
   },
-  defaultBadgeText: { fontSize: 12, fontWeight: '700', color: '#0EA5E9' },
+  defaultBadgeText: { fontSize: 12, fontWeight: '700', color: AppEco.primary },
 
   cardTop: { flexDirection: 'row', gap: 12 },
   cardIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F8FAFF',
+    backgroundColor: AppEco.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: AppEco.borderSoft,
   },
   cardBody: { flex: 1 },
-  cardName: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  cardPhone: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  cardAddr: { fontSize: 13, color: '#374151', marginTop: 6, lineHeight: 20 },
+  cardName: { fontSize: 15, fontWeight: '700', color: AppEco.text },
+  cardPhone: { fontSize: 13, color: AppEco.textSecondary, marginTop: 2 },
+  cardAddr: { fontSize: 13, color: AppEco.textSecondary, marginTop: 6, lineHeight: 20 },
   typeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -475,9 +447,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     marginTop: 14,
-    backgroundColor: '#0EA5E9',
-    borderRadius: 10,
+    backgroundColor: AppEco.primary,
+    borderRadius: AppEco.radiusSm,
     paddingVertical: 11,
+    ...AppEco.shadowCard,
   },
   selectBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 
@@ -487,7 +460,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F9FAFB',
+    borderTopColor: AppEco.borderSoft,
   },
   actionBtn: {
     flexDirection: 'row',
@@ -496,40 +469,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: AppEco.primaryMuted,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: AppEco.border,
   },
   actionBtnDanger: {
     backgroundColor: '#FEF2F2',
     borderColor: '#FECACA',
   },
-  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#0EA5E9' },
-  actionBtnTextDanger: { color: '#EF4444' },
+  actionBtnText: { fontSize: 13, fontWeight: '600', color: AppEco.primary },
+  actionBtnTextDanger: { color: AppEco.danger },
 
   newAddressBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginTop: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: AppEco.surface,
+    borderRadius: AppEco.radiusMd,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#BAE6FD',
+    borderColor: AppEco.border,
     borderStyle: 'dashed',
   },
   newAddressBtnIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: AppEco.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#BAE6FD',
+    borderColor: AppEco.border,
   },
   newAddressBtnBody: { flex: 1 },
-  newAddressBtnLabel: { fontSize: 15, fontWeight: '700', color: '#0EA5E9' },
-  newAddressBtnSub: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  newAddressBtnLabel: { fontSize: 15, fontWeight: '700', color: AppEco.primary },
+  newAddressBtnSub: { fontSize: 12, color: AppEco.textMuted, marginTop: 2 },
 });

@@ -1,31 +1,35 @@
-import { apiClient } from "@/src/api/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
+import { apiClient, type ApiResponse } from '@/src/api/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 
-import { ApiResponseList } from "@/src/api/client";
 import {
   AddToCartPayload,
-  AddToCartResponse, CartLineInput,
+  AddToCartResponse,
+  Cart,
+  CartLineInput,
   DeleteCartItemsPayload,
-  DeleteCartResponse, ICart, UpdateCartQuantityPayload,
-  UpdateCartResponse
-} from "./cart.type";
+  DeleteCartResponse,
+  GetCartResponse,
+  ICart,
+  UpdateCartQuantityPayload,
+  UpdateCartResponse,
+} from './cart.type';
 
-const URL = "/cart";
+const URL = '/cart';
 
 export const cartUri = {
   get: `${URL}/get`,
   add: `${URL}/add`,
   deleteItems: `${URL}/delete`,
-  updateItem:  `${URL}/update/:id`,
+  updateItem: `${URL}/update/:id`,
 };
 
 export const cartKey = {
-  LIST_CART: "LIST_CART",
+  LIST_CART: 'LIST_CART',
 };
 
 export const cartApis = {
-  getCart: () => apiClient.get<ApiResponseList<ICart[]>>(cartUri.get),
+  getCart: () => apiClient.get<GetCartResponse | ApiResponse<GetCartResponse>>(cartUri.get),
 
   addItems: (payload: AddToCartPayload) =>
     apiClient.post<AddToCartResponse>(cartUri.add, payload),
@@ -36,16 +40,39 @@ export const cartApis = {
     apiClient.delete<DeleteCartResponse>(cartUri.deleteItems, { data: payload }),
 
   updateItemQuantity: (itemId: string, payload: UpdateCartQuantityPayload) =>
-    apiClient.put<UpdateCartResponse>(cartUri.updateItem.replace(':id', itemId), payload),
+    apiClient
+      .put<UpdateCartResponse>(cartUri.updateItem.replace(':id', itemId), payload)
+      .then((r) => r.data),
 };
 
-export const useListCart = () => {
+/** Chuẩn hoá items từ nhiều dạng body API có thể trả về */
+export function extractCartItems(body: unknown): ICart[] {
+  if (!body || typeof body !== 'object') return [];
+
+  const root = body as Record<string, unknown>;
+
+  if (root.cart && typeof root.cart === 'object') {
+    const items = (root.cart as Cart).items;
+    if (Array.isArray(items)) return items as ICart[];
+  }
+
+  if (root.data && typeof root.data === 'object') {
+    return extractCartItems(root.data);
+  }
+
+  if (Array.isArray(root.items)) {
+    return root.items as ICart[];
+  }
+
+  return [];
+}
+
+export const useListCart = (enabled: boolean = true) => {
   return useQuery({
     queryKey: [cartKey.LIST_CART],
-    queryFn: () => cartApis.getCart(),
-    placeholderData: (previousData) => previousData,
-    select: (response) => {
-      return response},
+    queryFn: () => cartApis.getCart().then((res) => res.data),
+    enabled,
+    select: (body) => extractCartItems(body),
   });
 };
 
@@ -84,7 +111,7 @@ export const useUpdateCartQuantity = (props?: {
     }: {
       itemId: string;
       payload: UpdateCartQuantityPayload;
-    }) => cartApis.updateItemQuantity(itemId, payload).then((res) => res.data),
+    }) => cartApis.updateItemQuantity(itemId, payload),
     onSuccess: (data, variables) => {
       void queryClient.invalidateQueries({ queryKey: [cartKey.LIST_CART] });
       onSuccess?.(data, variables);
