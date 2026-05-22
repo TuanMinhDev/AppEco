@@ -27,6 +27,7 @@ export const orderUri = {
 
 export const orderKey = {
   LIST_ORDER: 'LIST_ORDER',
+<<<<<<< HEAD
   SHIPPING_OPTIONS: 'SHIPPING_OPTIONS',
   ORDER_DETAIL: 'ORDER_DETAIL',
   LIST_SELLER_ORDERS: 'LIST_SELLER_ORDERS',
@@ -84,15 +85,42 @@ export const orderApis = {
 export const useCreateOrder = (props?: {
   onSuccess?: (data: Order) => void;
   onError?: (error: unknown) => void;
+=======
+  CREATE_ORDER: 'CREATE_ORDER',
+}
+
+export const orderApis = {
+  listOrder: () => {
+    return apiClient.get<OrderListResponse>(orderUri.listOrder);
+  },
+  createOrder: (data: CreateOrderBody) => {
+    return apiClient.post<IOrder>(orderUri.createOrder, data);
+  },
+};
+
+export const useCreateOrder = (props?: {
+  onSuccess?: (data: IOrder) => void;
+  onError?: (error: any) => void;
+>>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0
 }) => {
   const { onSuccess, onError } = props ?? {};
   const queryClient = useQueryClient();
 
   return useMutation({
+<<<<<<< HEAD
     mutationFn: (data: CreateOrderBody) => orderApis.create(data),
     onSuccess: (response) => {
       void invalidateQueriesAfterOrderCreated(queryClient);
       onSuccess?.(response.data);
+=======
+    mutationFn: (data: CreateOrderBody) => orderApis.createOrder(data).then(res => res.data),
+    onSuccess: (data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [orderKey.LIST_ORDER],
+        refetchType: 'active',
+      });
+      onSuccess?.(data);
+>>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0
     },
     onError,
   });
@@ -101,6 +129,7 @@ export const useCreateOrder = (props?: {
 export const useListOrder = () => {
   return useQuery({
     queryKey: [orderKey.LIST_ORDER],
+<<<<<<< HEAD
     queryFn: () => orderApis.list(),
     placeholderData: (previousData) => previousData,
     select: (data) => data,
@@ -178,3 +207,11 @@ export const useUpdateOrderStatus = (props?: {
     onError: props?.onError,
   });
 };
+=======
+    queryFn: () => orderApis.listOrder(),
+    select: (data) => data,
+    placeholderData: (previousData) => previousData,
+  });
+};
+
+>>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0
