@@ -93,6 +93,7 @@ export default function SearchScreen() {
                                     key={product._id}
                                     product={product}
                                     cardWidth={CARD_WIDTH}
+                                    viewFrom="search"
                                 />
                             ))}
                         </View>
@@ -106,7 +107,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: AppEco.background,
+        backgroundColor: '#FFFFFF',
     },
     scrollContent: {
         paddingHorizontal: 20,
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
         width: 42,
         height: 42,
         borderRadius: 21,
-        backgroundColor: AppEco.surfaceMuted,
+        backgroundColor: '#F3F4F6',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     clearSearchBtn: {
-        backgroundColor: AppEco.surfaceMuted,
+        backgroundColor: '#F3F4F6',
         borderWidth: 1,
         borderColor: AppEco.primary,
         borderRadius: 12,

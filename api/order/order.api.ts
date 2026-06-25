@@ -1,4 +1,6 @@
+import { cartKey } from '@/api/cart/cart.api';
 import { notificationKey } from '@/api/notification/notification.api';
+import { invalidateRecommendationQueries } from '@/api/ai/ai.api';
 import { apiClient } from '@/src/api/client';
 import type { QueryClient } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,7 +29,6 @@ export const orderUri = {
 
 export const orderKey = {
   LIST_ORDER: 'LIST_ORDER',
-<<<<<<< HEAD
   SHIPPING_OPTIONS: 'SHIPPING_OPTIONS',
   ORDER_DETAIL: 'ORDER_DETAIL',
   LIST_SELLER_ORDERS: 'LIST_SELLER_ORDERS',
@@ -35,11 +36,19 @@ export const orderKey = {
 };
 
 /** Sau khi tạo đơn (POST /order/create): làm mới danh sách đơn + thông báo. */
-export function invalidateQueriesAfterOrderCreated(qc: QueryClient) {
-  return Promise.all([
+export function invalidateQueriesAfterOrderCreated(
+  qc: QueryClient,
+  opts?: { refreshCart?: boolean },
+) {
+  const tasks: Promise<unknown>[] = [
     qc.invalidateQueries({ queryKey: [orderKey.LIST_ORDER] }),
-    qc.invalidateQueries({ queryKey: notificationKey.root }),
-  ]);
+    qc.invalidateQueries({ queryKey: [notificationKey.root] }),
+    invalidateRecommendationQueries(qc),
+  ];
+  if (opts?.refreshCart) {
+    tasks.push(qc.invalidateQueries({ queryKey: [cartKey.LIST_CART] }));
+  }
+  return Promise.all(tasks);
 }
 
 /** Socket / realtime: cập nhật danh sách đơn và chi tiết một đơn (nếu có orderId). */
@@ -85,54 +94,27 @@ export const orderApis = {
 export const useCreateOrder = (props?: {
   onSuccess?: (data: Order) => void;
   onError?: (error: unknown) => void;
-=======
-  CREATE_ORDER: 'CREATE_ORDER',
-}
-
-export const orderApis = {
-  listOrder: () => {
-    return apiClient.get<OrderListResponse>(orderUri.listOrder);
-  },
-  createOrder: (data: CreateOrderBody) => {
-    return apiClient.post<IOrder>(orderUri.createOrder, data);
-  },
-};
-
-export const useCreateOrder = (props?: {
-  onSuccess?: (data: IOrder) => void;
-  onError?: (error: any) => void;
->>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0
 }) => {
   const { onSuccess, onError } = props ?? {};
   const queryClient = useQueryClient();
 
   return useMutation({
-<<<<<<< HEAD
     mutationFn: (data: CreateOrderBody) => orderApis.create(data),
     onSuccess: (response) => {
       void invalidateQueriesAfterOrderCreated(queryClient);
       onSuccess?.(response.data);
-=======
-    mutationFn: (data: CreateOrderBody) => orderApis.createOrder(data).then(res => res.data),
-    onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: [orderKey.LIST_ORDER],
-        refetchType: 'active',
-      });
-      onSuccess?.(data);
->>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0
     },
     onError,
   });
 };
 
-export const useListOrder = () => {
+export const useListOrder = (enabled: boolean = true) => {
   return useQuery({
     queryKey: [orderKey.LIST_ORDER],
-<<<<<<< HEAD
     queryFn: () => orderApis.list(),
     placeholderData: (previousData) => previousData,
     select: (data) => data,
+    enabled,
   });
 };
 
@@ -207,11 +189,3 @@ export const useUpdateOrderStatus = (props?: {
     onError: props?.onError,
   });
 };
-=======
-    queryFn: () => orderApis.listOrder(),
-    select: (data) => data,
-    placeholderData: (previousData) => previousData,
-  });
-};
-
->>>>>>> 5fdd048d6def3ad37c8dea7356a5f96ff14d38f0

@@ -44,15 +44,18 @@ function RegisterFormContent() {
         end={{ x: 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + 12 }]}
       >
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.replace('/(auth)/login')}
-          hitSlop={12}
-        >
-          <Ionicons name="chevron-back" size={26} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.heroTitle}>Đăng ký</Text>
-        <Text style={styles.heroSub}>Tạo tài khoản Pine Studio trong vài bước</Text>
+        <View style={styles.heroHeader}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.replace('/(auth)/login')}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Quay lại"
+          >
+            <Ionicons name="chevron-back" size={26} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.heroTitle}>Đăng ký</Text>
+        </View>
       </LinearGradient>
 
       <SafeAreaView style={styles.sheet} edges={['bottom']}>
@@ -62,8 +65,13 @@ function RegisterFormContent() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <AppInput
-            label="Họ và tên"
+          <View style={styles.contentHeader}>
+            <Text style={styles.welcomeTitle}>Tạo tài khoản Pine Studio trong vài bước</Text>
+          </View>
+
+          <View style={styles.formSection}>
+            <AppInput
+              label="Họ và tên"
             name="name"
             control={control}
             rules={{ required: 'Vui lòng nhập họ và tên' }}
@@ -147,6 +155,7 @@ function RegisterFormContent() {
               {registerMutation.isPending ? 'Đang xử lý…' : 'Đăng ký'}
             </Text>
           </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             onPress={() => router.replace('/(auth)/login')}
@@ -184,7 +193,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: AppEco.surface,
   },
   hero: {
     paddingHorizontal: 20,
@@ -192,34 +201,48 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: AppEco.radiusXl,
     borderBottomRightRadius: AppEco.radiusXl,
   },
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   backBtn: {
-    alignSelf: 'flex-start',
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
   heroTitle: {
     fontSize: 32,
     fontWeight: '800',
     color: '#fff',
   },
-  heroSub: {
-    marginTop: 8,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-  },
   sheet: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: AppEco.surface,
   },
   scroll: { flex: 1 },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 22,
-    paddingTop: 24,
+    paddingTop: 28,
+  },
+  contentHeader: {
+    alignItems: 'center',
+    marginBottom: 28,
+    gap: 8,
+  },
+  welcomeTitle: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: AppEco.text,
+    lineHeight: 28,
+    maxWidth: 300,
+  },
+  formSection: {
     gap: 16,
   },
   primaryBtn: {
@@ -236,7 +259,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-  footerLinkWrap: { alignItems: 'center', marginTop: 8 },
+  footerLinkWrap: { alignItems: 'center', marginTop: 24 },
   footerMuted: { fontSize: 15, color: AppEco.textSecondary },
   footerLink: { color: AppEco.primary, fontWeight: '700' },
 });

@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface CheckoutItem {
   _id: string;
+  /** `_id` dòng giỏ từ GET /cart/get — chỉ có khi thanh toán từ giỏ */
+  cartItemId?: string;
   /** Theo API đặt hàng: một đơn một seller */
   sellerId?: string;
   productId: {
@@ -18,6 +20,17 @@ export interface CheckoutItem {
   quantity: number;
   price: number;
 }
+
+export type OrderSuccessItem = {
+  id: string;
+  name: string;
+  image?: string;
+};
+
+export type OrderSuccessSnapshot = {
+  items: OrderSuccessItem[];
+  codes: string[];
+};
 
 export interface ShippingInfo {
   fullName: string;
@@ -57,6 +70,7 @@ export interface CheckoutState {
   notes: string;
   isProcessing: boolean;
   error: string | null;
+  orderSuccess: OrderSuccessSnapshot | null;
 }
 
 const initialState: CheckoutState = {
@@ -72,6 +86,7 @@ const initialState: CheckoutState = {
   notes: '',
   isProcessing: false,
   error: null,
+  orderSuccess: null,
 };
 
 const checkoutSlice = createSlice({
@@ -135,7 +150,17 @@ const checkoutSlice = createSlice({
     },
     
     clearCheckout: (state) => {
-      return initialState;
+      const snapshot = state.orderSuccess;
+      Object.assign(state, initialState);
+      state.orderSuccess = snapshot;
+    },
+
+    setOrderSuccess: (state, action: PayloadAction<OrderSuccessSnapshot>) => {
+      state.orderSuccess = action.payload;
+    },
+
+    clearOrderSuccess: (state) => {
+      state.orderSuccess = null;
     },
     
     setProcessing: (state, action: PayloadAction<boolean>) => {
@@ -164,6 +189,8 @@ export const {
   setDiscount,
   setNotes,
   clearCheckout,
+  setOrderSuccess,
+  clearOrderSuccess,
   setProcessing,
   setError,
 } = checkoutSlice.actions;
@@ -183,3 +210,4 @@ export const selectCheckoutTotals = (state: { checkout: CheckoutState }) => ({
 export const selectCheckoutNotes = (state: { checkout: CheckoutState }) => state.checkout.notes;
 export const selectCheckoutProcessing = (state: { checkout: CheckoutState }) => state.checkout.isProcessing;
 export const selectCheckoutError = (state: { checkout: CheckoutState }) => state.checkout.error;
+export const selectOrderSuccess = (state: { checkout: CheckoutState }) => state.checkout.orderSuccess;

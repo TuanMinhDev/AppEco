@@ -1,3 +1,4 @@
+import { invalidateRecommendationQueries } from '@/api/ai/ai.api';
 import { apiClient } from '@/src/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -45,6 +46,7 @@ export const useAddFavorite = () => {
     mutationFn: (productId: string) => favoriteApis.add(productId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: favoriteKey.list });
+      void invalidateRecommendationQueries(qc);
     },
   });
 };
@@ -55,6 +57,7 @@ export const useRemoveFavorite = () => {
     mutationFn: (productId: string) => favoriteApis.remove(productId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: favoriteKey.list });
+      void invalidateRecommendationQueries(qc);
     },
   });
 };
@@ -69,6 +72,7 @@ export const useToggleProductFavorite = () => {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: favoriteKey.list });
+      void invalidateRecommendationQueries(qc);
     },
   });
 };

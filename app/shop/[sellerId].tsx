@@ -1,8 +1,6 @@
-import { useCreateOrGetConversation } from '@/api/message/message.api';
 import { useProductsBySellerInfinite } from '@/api/product/product.api';
 import { useGetCurrentUser, useSellerPublicShop } from '@/api/user/user.api';
 import { ProductItem } from '@/components/commom/ProductItem';
-import { useToast } from '@/components/toast/ToastProvider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,15 +17,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getApiErrorMessage } from '@/utils/api-error-message';
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const H_PAD = 16;
 const GAP = 12;
 const CARD_WIDTH = (SCREEN_WIDTH - H_PAD * 2 - GAP) / 2;
 
 export default function SellerShopScreen() {
-  const toast = useToast();
   const { sellerId } = useLocalSearchParams<{ sellerId: string }>();
   const id = typeof sellerId === 'string' ? sellerId : sellerId?.[0] ?? '';
 
@@ -42,9 +37,6 @@ export default function SellerShopScreen() {
   const { data: me, isSuccess: meOk } = useGetCurrentUser();
   const isLoggedIn = meOk && !!me?._id;
   const isOwnShop = Boolean(isLoggedIn && me && me._id === id);
-
-  const { mutateAsync: createOrGetConversation, isPending: chatPending } =
-    useCreateOrGetConversation();
 
   const {
     data: pagesData,
@@ -74,19 +66,8 @@ export default function SellerShopScreen() {
     return [w.province, w.district, w.ward].filter(Boolean).join(' · ');
   }, [shop]);
 
-  const handleChatPress = async () => {
-    if (!isLoggedIn) {
-      const redirect = encodeURIComponent(`/shop/${id}`);
-      router.push(`/(auth)/login?redirect=${redirect}` as any);
-      return;
-    }
-    try {
-      const res = await createOrGetConversation({ participantId: id });
-      const convId = res.data.conversation._id;
-      router.push(`/chat/${convId}` as any);
-    } catch (e: unknown) {
-      toast.showError(getApiErrorMessage(e, 'Không thể mở chat.'));
-    }
+  const handleChatPress = () => {
+    router.push('/chat/ai' as any);
   };
 
   const listHeader = (
@@ -120,19 +101,9 @@ export default function SellerShopScreen() {
 
         {!isOwnShop ? (
           <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.chatBtn}
-              onPress={handleChatPress}
-              disabled={chatPending}
-            >
-              {chatPending ? (
-                <ActivityIndicator size="small" color="#1D4ED8" />
-              ) : (
-                <>
-                  <Ionicons name="chatbubble-outline" size={16} color="#1D4ED8" />
-                  <Text style={styles.chatBtnText}>Nhắn tin cửa hàng</Text>
-                </>
-              )}
+            <TouchableOpacity style={styles.chatBtn} onPress={handleChatPress} activeOpacity={0.85}>
+              <Ionicons name="sparkles-outline" size={16} color="#1D4ED8" />
+              <Text style={styles.chatBtnText}>Chat AI</Text>
             </TouchableOpacity>
           </View>
         ) : null}

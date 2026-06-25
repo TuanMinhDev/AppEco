@@ -2,8 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 
 import { apiClient } from '@/src/api/client';
-import { store } from '@/src/store';
-import { setTokens as setReduxTokens } from '@/src/store/slices/authSlice';
+import {
+  clearAuthSession,
+  persistAuthSession,
+} from '@/src/auth/session';
+import { getRefreshToken } from '@/src/auth/token-storage';
 import { userQueryKey } from '@/api/user/user.api';
 
 import {
@@ -11,13 +14,17 @@ import {
   ChangePasswordResponse,
   LoginPayload,
   LoginResponse,
+  LogoutPayload,
+  LogoutResponse,
   RefreshTokenPayload,
   RefreshTokenResponse,
   RegisterPayload,
   RegisterResponse,
 } from './auth.type';
-
-const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+import {
+  pickTokensFromLoginResponse,
+  pickTokensFromRefreshResponse,
+} from './auth.utils';
 
 const userBase = '/user';
 
@@ -26,6 +33,7 @@ export const authUri = {
   register: `${userBase}/register`,
   changePassword: `${userBase}/change-password`,
   refreshToken: `${userBase}/refresh-token`,
+  logout: `${userBase}/logout`,
 };
 
 export const authApis = {
@@ -44,6 +52,12 @@ export const authApis = {
     apiClient
       .post<RefreshTokenResponse>(authUri.refreshToken, payload)
       .then((r) => r.data),
+
+  logout: async (payload?: LogoutPayload) => {
+    const refreshToken = payload?.refreshToken ?? (await getRefreshToken());
+    const body: LogoutPayload = refreshToken ? { refreshToken } : {};
+    return apiClient.post<LogoutResponse>(authUri.logout, body).then((r) => r.data);
+  },
 };
 
 export const useLogin = (props?: {
@@ -56,20 +70,12 @@ export const useLogin = (props?: {
   return useMutation({
     mutationFn: (payload: LoginPayload) => authApis.login(payload),
     onSuccess: async (response, variables) => {
-      const token = response.token;
-      if (token) {
-        store.dispatch(
-          setReduxTokens({ accessToken: token, refreshToken: null }),
-        );
-        try {
-          await AsyncStorage.setItem('token', token);
-        } catch {
-          /* ignore */
-        }
+      const tokens = pickTokensFromLoginResponse(response);
+      if (tokens.accessToken && tokens.refreshToken) {
+        await persistAuthSession(tokens);
       }
 
       void queryClient.invalidateQueries({ queryKey: userQueryKey.me });
-
       onSuccess?.(response, variables);
     },
     onError,
@@ -93,12 +99,38 @@ export const useChangePassword = (props?: {
   onSuccess?: (data: ChangePasswordResponse) => void;
   onError?: (error: AxiosError<unknown>) => void;
 }) => {
+  const queryClient = useQueryClient();
   const { onSuccess, onError } = props ?? {};
+
   return useMutation({
     mutationFn: (payload: ChangePasswordPayload) =>
       authApis.changePassword(payload),
-    onSuccess,
+    onSuccess: async (data) => {
+      await clearAuthSession(queryClient);
+      onSuccess?.(data);
+    },
     onError,
+  });
+};
+
+export const useLogout = (props?: {
+  onSuccess?: () => void;
+  onError?: (error: AxiosError<unknown>) => void;
+}) => {
+  const queryClient = useQueryClient();
+  const { onSuccess, onError } = props ?? {};
+
+  return useMutation({
+    mutationFn: () => authApis.logout(),
+    onSuccess: async () => {
+      await clearAuthSession(queryClient);
+      onSuccess?.();
+    },
+    onError: async (error: AxiosError<unknown>) => {
+      await clearAuthSession(queryClient);
+      onError?.(error);
+      onSuccess?.();
+    },
   });
 };
 
@@ -112,19 +144,11 @@ export const useRefreshToken = (props?: {
   return useMutation({
     mutationFn: (payload: RefreshTokenPayload) =>
       authApis.refreshToken(payload),
-    onSuccess: async (data, variables) => {
-      try {
-        await AsyncStorage.setItem('token', data.accessToken);
-        await AsyncStorage.setItem('refreshToken', data.refreshToken);
-      } catch {
-        /* ignore */
+    onSuccess: async (data) => {
+      const tokens = pickTokensFromRefreshResponse(data);
+      if (tokens.accessToken && tokens.refreshToken) {
+        await persistAuthSession(tokens);
       }
-      store.dispatch(
-        setReduxTokens({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-        }),
-      );
       void queryClient.invalidateQueries({ queryKey: userQueryKey.me });
       onSuccess?.(data);
     },

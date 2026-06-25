@@ -2,12 +2,12 @@ import { useLogin } from '@/api/auth/auth.api';
 import { AppInput } from '@/components/app-input';
 import { useToast } from '@/components/toast/ToastProvider';
 import { AppEco } from '@/constants/theme';
-import { AntDesign, FontAwesome } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { FormProvider, useForm, useFormContext } from 'react-hook-form';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getApiErrorMessage } from '@/utils/api-error-message';
@@ -54,31 +54,45 @@ function LoginFormContent() {
   };
 
   return (
-    <>
-      <View style={[styles.root, { paddingBottom: insets.bottom + 12 }]}>
-        <LinearGradient
-          colors={[...AppEco.heroGradient]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: insets.top + 12 }]}
-        >
-          <View style={styles.heroHeader}>
-            {/* <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => router.replace('/(auth)')}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Quay lại"
-            >
-              <Ionicons name="chevron-back" size={26} color="#fff" />
-            </TouchableOpacity> */}
-            <Text style={styles.heroTitle}>Đăng nhập</Text>
-          </View>
-          <Text style={styles.heroSub}>Chào mừng trở lại Pine Studio</Text>
-        </LinearGradient>
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[...AppEco.heroGradient]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + 12 }]}
+      >
+        <View style={styles.heroHeader}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.replace('/(auth)')}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Quay lại"
+          >
+            <Ionicons name="chevron-back" size={26} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.heroTitle}>Đăng nhập</Text>
+        </View>
+      </LinearGradient>
 
-        <SafeAreaView style={styles.sheetSafe} edges={[]}>
-          <View style={styles.form}>
+      <SafeAreaView style={styles.sheet} edges={['bottom']}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentHeader}>
+            <Text style={styles.welcomeTitle}>Chào mừng trở lại Pine Studio</Text>
+            <Text style={styles.welcomeSub}>
+              Tiếp tục mua sắm xanh và khám phá gợi ý dành riêng cho bạn.
+            </Text>
+          </View>
+
+          <View style={styles.formSection}>
             <AppInput
               label="Tài khoản"
               name="account"
@@ -127,29 +141,10 @@ function LoginFormContent() {
                 <Text style={styles.footerLink}>Đăng ký</Text>
               </Text>
             </TouchableOpacity>
-
           </View>
-
-          <View style={styles.socialSection}>
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>Hoặc</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.85}>
-                <FontAwesome name="facebook-f" size={20} color="#1877f2" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.85}>
-                <AntDesign name="google" size={20} color="#DB4437" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </View>
-
-    </>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -168,11 +163,11 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: AppEco.surface,
   },
   hero: {
     paddingHorizontal: 20,
-    paddingBottom: 36,
+    paddingBottom: 32,
     borderBottomLeftRadius: AppEco.radiusXl,
     borderBottomRightRadius: AppEco.radiusXl,
   },
@@ -180,8 +175,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 10,
-    marginTop:10
   },
   backBtn: {
     width: 40,
@@ -196,21 +189,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
   },
-  heroSub: {
-    marginTop: 8,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-  },
-  sheetSafe: {
+  sheet: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: AppEco.surface,
   },
-  form: {
-    flex: 1,
+  scroll: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 22,
     paddingTop: 28,
-    gap: 18,
+  },
+  contentHeader: {
+    alignItems: 'center',
+    marginBottom: 28,
+    gap: 8,
+  },
+  welcomeTitle: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: AppEco.text,
+    lineHeight: 28,
+  },
+  welcomeSub: {
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 22,
+    color: AppEco.textSecondary,
+    maxWidth: 300,
+  },
+  formSection: {
+    gap: 16,
+    paddingTop: 30,
   },
   primaryBtn: {
     marginTop: 8,
@@ -226,7 +236,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-  footerLinkWrap: { alignItems: 'center', marginTop: 4 },
+  footerLinkWrap: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
   footerMuted: {
     fontSize: 15,
     color: AppEco.textSecondary,
@@ -234,29 +247,5 @@ const styles = StyleSheet.create({
   footerLink: {
     color: AppEco.primary,
     fontWeight: '700',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
-  },
-  divider: { flex: 1, height: 1, backgroundColor: AppEco.borderSoft },
-  dividerText: { fontSize: 13, color: AppEco.textMuted, fontWeight: '600' },
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  socialBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: AppEco.surface,
-    borderWidth: 1.5,
-    borderColor: AppEco.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...AppEco.shadowCard,
   },
 });

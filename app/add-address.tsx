@@ -175,6 +175,7 @@ function AddAddressForm({ addressId, isEditMode }: { addressId?: string; isEditM
             rules={{ required: 'Vui lòng nhập họ tên' }}
             placeholder="Nhập họ và tên người nhận"
             placeholderTextColor="#9CA3AF"
+            autoCapitalize="words"
             returnKeyType="next"
           />
           <AppInput
@@ -299,6 +300,7 @@ function AddAddressForm({ addressId, isEditMode }: { addressId?: string; isEditM
             rules={{ required: 'Vui lòng nhập địa chỉ cụ thể' }}
             placeholder="Số nhà, tên đường..."
             placeholderTextColor="#9CA3AF"
+            autoCapitalize="sentences"
             multiline
             numberOfLines={2}
             style={{

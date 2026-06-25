@@ -4,8 +4,7 @@ import { useListOrder } from '@/api/order/order.api';
 import { useGetCurrentUser } from '@/api/user/user.api';
 import { useAppDialog } from '@/components/app-dialog/AppDialogProvider';
 import { AppEco } from '@/constants/theme';
-import { useAppDispatch } from '@/src/store';
-import { clearTokens } from '@/src/store/slices/authSlice';
+import { useLogout } from '@/api/auth/auth.api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -24,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const ORDER_STATUS_ICONS: { icon: any; label: string; color: string; bg: string }[] = [
   { icon: 'hourglass-outline', label: 'Chờ xác nhận', color: '#F59E0B', bg: '#FFFBEB' },
   { icon: 'bag-handle-outline', label: 'Đang giao', color: '#3B82F6', bg: '#EFF6FF' },
-  { icon: 'checkmark-circle-outline', label: 'Đã giao', color: '#10B981', bg: '#ECFDF5' },
+  { icon: 'checkmark-circle-outline', label: 'Đã giao', color: '#10B981', bg: '#F3F4F6' },
   { icon: 'close-circle-outline', label: 'Đã huỷ', color: '#EF4444', bg: '#FEF2F2' },
 ];
 
@@ -33,8 +32,10 @@ type MenuItem = { icon: any; label: string; sub?: string; onPress: () => void; d
 const ORDER_STATUS_KEYS = ['pending', 'shipping', 'delivered', 'cancelled'] as const;
 
 export default function ProfileScreen() {
-  const dispatch = useAppDispatch();
   const dialog = useAppDialog();
+  const logoutMutation = useLogout({
+    onSuccess: () => router.replace('/(auth)/login' as never),
+  });
 
   const { data: user, isLoading: userLoading, isSuccess: userOk } = useGetCurrentUser();
   const { data: addressesData, isLoading: addressLoading } = useListAddress();
@@ -55,7 +56,7 @@ export default function ProfileScreen() {
       message: 'Bạn có chắc muốn đăng xuất?',
       confirmText: 'Đăng xuất',
       destructive: true,
-      onConfirm: () => dispatch(clearTokens()),
+      onConfirm: () => logoutMutation.mutate(),
     });
 
   const adminMenu: MenuItem[] =
@@ -79,6 +80,12 @@ export default function ProfileScreen() {
             sub: 'Xác nhận · giao · huỷ',
             onPress: () => router.push('/admin/orders' as any),
           },
+          {
+            icon: 'chatbubbles-outline',
+            label: 'Inbox hỗ trợ',
+            sub: 'Tin nhắn khách hàng',
+            onPress: () => router.push('/admin/messages' as any),
+          },
         ]
       : [];
 
@@ -98,13 +105,14 @@ export default function ProfileScreen() {
       onPress: () => router.push('/favorites' as any),
     },
     {
-      icon: 'chatbubbles-outline',
-      label: 'Tin nhắn',
-      onPress: () => router.push('/conversations' as any),
+      icon: 'sparkles-outline',
+      label: 'Chat AI',
+      sub: 'Trợ lý mua sắm thông minh',
+      onPress: () => router.push('/chat/ai' as any),
     },
     { icon: 'notifications-outline', label: 'Thông báo', onPress: () => { } },
     { icon: 'shield-checkmark-outline', label: 'Bảo mật', onPress: () => { } },
-    { icon: 'help-circle-outline', label: 'Trợ giúp & Hỗ trợ', onPress: () => { } },
+    { icon: 'help-circle-outline', label: 'Trợ giúp & Hỗ trợ', onPress: () => router.push('/chat/ai' as any) },
     { icon: 'log-out-outline', label: 'Đăng xuất', onPress: handleLogout, danger: true },
   ];
 
@@ -239,7 +247,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: { paddingBottom: 40 },
 
   hero: {
@@ -263,14 +271,14 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
     borderWidth: 1,
-    borderColor: AppEco.borderSoft,
+    borderColor: '#F3F4F6',
     ...AppEco.shadowCard,
   },
   avatarWrap: { position: 'relative' },
-  avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: AppEco.surfaceMuted, borderWidth: 2.5, borderColor: AppEco.border },
+  avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#F3F4F6', borderWidth: 2.5, borderColor: AppEco.border },
   avatarFallback: {
     width: 62, height: 62, borderRadius: 31,
-    backgroundColor: AppEco.surfaceMuted, borderWidth: 2.5, borderColor: AppEco.border,
+    backgroundColor: '#F3F4F6', borderWidth: 2.5, borderColor: AppEco.border,
     justifyContent: 'center', alignItems: 'center',
   },
   avatarInitial: { fontSize: 26, fontWeight: '900', color: AppEco.primary },
@@ -285,23 +293,23 @@ const styles = StyleSheet.create({
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     marginTop: 6, alignSelf: 'flex-start',
-    backgroundColor: AppEco.surfaceMuted, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
+    backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
   },
   roleText: { fontSize: 12, color: AppEco.primary, fontWeight: '600' },
   editBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: AppEco.surfaceMuted, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
   },
 
   // Address
   addressCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: AppEco.surface, marginTop: 10,
-    borderRadius: AppEco.radiusMd, padding: 14, borderWidth: 1, borderColor: AppEco.borderSoft,
+    borderRadius: AppEco.radiusMd, padding: 14, borderWidth: 1, borderColor: '#F3F4F6',
   },
   addressIcon: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: AppEco.surfaceMuted, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
   },
   addressBody: { flex: 1 },
   addressLabel: { fontSize: 12, fontWeight: '700', color: AppEco.textMuted, marginBottom: 3 },
@@ -310,7 +318,7 @@ const styles = StyleSheet.create({
   // Section
   section: {
     backgroundColor: AppEco.surface, marginTop: 10,
-    borderRadius: AppEco.radiusMd, padding: 16, borderWidth: 1, borderColor: AppEco.borderSoft,
+    borderRadius: AppEco.radiusMd, padding: 16, borderWidth: 1, borderColor: '#F3F4F6',
   },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: AppEco.text },
@@ -335,26 +343,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginTop: 10,
     backgroundColor: AppEco.surface, borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: AppEco.borderSoft,
+    borderWidth: 1, borderColor: '#F3F4F6',
   },
   infoText: { fontSize: 14, color: AppEco.text, fontWeight: '500' },
 
   // Menu
   menuCard: {
     backgroundColor: AppEco.surface, marginTop: 10,
-    borderRadius: AppEco.radiusMd, overflow: 'hidden', borderWidth: 1, borderColor: AppEco.borderSoft,
+    borderRadius: AppEco.radiusMd, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6',
   },
   menuRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 14 },
   menuIcon: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: AppEco.surfaceMuted, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
   },
   menuIconDanger: { backgroundColor: 'rgba(220, 38, 38, 0.08)' },
   menuBody: { flex: 1 },
   menuLabel: { fontSize: 15, fontWeight: '600', color: AppEco.text },
   menuLabelDanger: { color: AppEco.danger },
   menuSub: { fontSize: 12, color: AppEco.textMuted, marginTop: 2 },
-  menuDivider: { height: 1, backgroundColor: AppEco.borderSoft, marginLeft: 68 },
+  menuDivider: { height: 1, backgroundColor: '#F3F4F6', marginLeft: 68 },
 
   version: { textAlign: 'center', fontSize: 12, color: AppEco.textMuted, marginTop: 24, fontWeight: '500' },
 });

@@ -32,7 +32,7 @@ export default function TabLayout() {
           paddingBottom: tabBarBottom,
           backgroundColor: AppEco.surface,
           borderTopWidth: 1,
-          borderTopColor: AppEco.borderSoft,
+          borderTopColor: '#F3F4F6',
           shadowColor: '#134E4A',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.06,
@@ -52,6 +52,7 @@ export default function TabLayout() {
         options={{
           title: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen

@@ -21,7 +21,7 @@ import { getApiErrorMessage } from '@/utils/api-error-message';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Controller,
   FormProvider,
@@ -486,6 +486,10 @@ function ProductFormWithDefaults({
 }) {
   const form = useForm<ProductFormValues>({ defaultValues: initial });
 
+  useEffect(() => {
+    form.reset(initial);
+  }, [form, initial]);
+
   return (
     <FormProvider {...form}>
       <ProductFormFields productId={productId} product={product} />
@@ -571,7 +575,7 @@ export default function AdminProductFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   centerAll: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   muted: { marginTop: 8, color: AppEco.textSecondary },
   deny: { fontSize: 16, fontWeight: '700', color: AppEco.textSecondary },
@@ -581,11 +585,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 4,
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
     borderRadius: AppEco.radiusLg,
     padding: 4,
     borderWidth: 1,
-    borderColor: AppEco.borderSoft,
+    borderColor: '#F3F4F6',
   },
   tab: {
     flex: 1,
@@ -629,7 +633,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: 16,
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
   },
   selectBtnActive: {
     borderColor: AppEco.primary,
@@ -650,7 +654,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: AppEco.radiusSm,
-    backgroundColor: AppEco.borderSoft,
+    backgroundColor: '#F3F4F6',
   },
   rmImg: {
     position: 'absolute',
@@ -672,7 +676,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
   },
   addImgText: {
     fontSize: 10,
@@ -717,7 +721,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: AppEco.borderSoft,
+    borderBottomColor: '#F3F4F6',
   },
   catRowText: { fontSize: 15, color: AppEco.textSecondary },
   catRowTextHi: { color: AppEco.primary, fontWeight: '800' },

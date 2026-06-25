@@ -1,16 +1,9 @@
-import type { Product } from "@/api/product/product.type";
-import {
-  useFavoritesList,
-  useToggleProductFavorite,
-} from "@/api/favorite/favorite.api";
-import { useGetCurrentUser } from "@/api/user/user.api";
-import { useToast } from "@/components/toast/ToastProvider";
+import type { Product, ProductViewSource } from "@/api/product/product.type";
 import { AppEco } from "@/constants/theme";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, type Href } from "expo-router";
-import React, { useCallback, useMemo } from "react";
+import React from "react";
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
@@ -18,8 +11,6 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-
-import { getApiErrorMessage } from "@/utils/api-error-message";
 
 const PRODUCT_CARD_IMAGE_HEIGHT = 200;
 const PRODUCT_NAME_LINES = 2;
@@ -29,64 +20,37 @@ function formatPrice(price: number) {
   return price.toLocaleString("vi-VN") + "đ";
 }
 
+function getProductBasePrice(product: Product): number {
+  const prices =
+    product.variants?.map((v) => v.price).filter((p) => typeof p === "number" && p > 0) ??
+    [];
+  return prices.length > 0 ? Math.min(...prices) : 0;
+}
+
 export type ProductItemProps = {
   product: Product;
   cardWidth: number;
   style?: ViewStyle;
+  /** Gửi lên POST /product/:id/view qua query ?from= */
+  viewFrom?: Extract<ProductViewSource, 'search' | 'recommend'>;
 };
 
-export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
-  const toast = useToast();
-  const { data: me, isSuccess: meOk } = useGetCurrentUser();
-  const isLoggedIn = meOk && !!me?._id;
-  const { data: favRes, isLoading: favListLoading } = useFavoritesList(isLoggedIn);
-  const { mutate: toggleFavorite, isPending: favMutating } = useToggleProductFavorite();
-
-  const isFavorite = useMemo(() => {
-    if (!isLoggedIn) return false;
-    const list = favRes?.favorites ?? [];
-    return list.some((p) => p._id === product._id);
-  }, [isLoggedIn, favRes?.favorites, product._id]);
-
-  const handleLikePress = useCallback(() => {
-    const pid = product._id;
-    if (!pid) return;
-    if (!isLoggedIn) {
-      const path = `/(auth)/login?redirect=${encodeURIComponent(`/product/${pid}`)}`;
-      router.push(path as Href);
-      return;
-    }
-    if (favListLoading || favMutating) return;
-    toggleFavorite(
-      { productId: pid, remove: isFavorite },
-      {
-        onError: (e: unknown) => {
-          toast.showError(
-            getApiErrorMessage(
-              e,
-              isFavorite ? "Không thể bỏ yêu thích." : "Không thể thêm yêu thích."
-            )
-          );
-        },
-      }
-    );
-  }, [
-    product._id,
-    isLoggedIn,
-    favListLoading,
-    favMutating,
-    isFavorite,
-    toggleFavorite,
-  ]);
-
-  const originalPrice = product.variants?.[0]?.price ?? 0;
+export function ProductItem({
+  product,
+  cardWidth,
+  style,
+  viewFrom,
+}: ProductItemProps): React.JSX.Element {
+  const originalPrice = getProductBasePrice(product);
   const salePrice =
     product.sale != null && product.sale > 0
       ? originalPrice * (1 - product.sale / 100)
       : null;
   const image = product.images?.[0];
 
-  const likeLabel = isFavorite ? "Bỏ yêu thích" : "Thêm yêu thích";
+  const productHref = viewFrom
+    ? (`/product/${product._id}?from=${viewFrom}` as Href)
+    : (`/product/${product._id}` as Href);
 
   return (
     <View
@@ -100,7 +64,7 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
     >
       <Pressable
         style={styles.cardPressable}
-        onPress={() => router.push(`/product/${product._id}` as Href)}
+        onPress={() => router.push(productHref)}
         android_ripple={{ color: "rgba(255,255,255,0.12)" }}
       >
         <View style={styles.imageContainer}>
@@ -158,26 +122,6 @@ export function ProductItem({ product, cardWidth, style }: ProductItemProps) {
           </View>
         </View>
       </Pressable>
-
-      <Pressable
-        style={styles.likeBtn}
-        onPress={handleLikePress}
-        disabled={isLoggedIn && (favListLoading || favMutating)}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`${likeLabel}, ${product.name}`}
-        android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
-      >
-        {isLoggedIn && (favListLoading || favMutating) ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <Ionicons
-            name={isFavorite ? "heart" : "heart-outline"}
-            size={16}
-            color={isFavorite ? AppEco.sale : "#fff"}
-          />
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -224,18 +168,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
   },
-  likeBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    zIndex: 2,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   info: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -244,7 +176,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.02)",
   },
   nameSlot: {
-    minHeight: PRODUCT_NAME_LINE_HEIGHT,
+    minHeight: PRODUCT_NAME_LINE_HEIGHT * PRODUCT_NAME_LINES,
     justifyContent: "flex-start",
   },
   productName: {

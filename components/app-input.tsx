@@ -1,13 +1,41 @@
 import { AppEco } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FieldValues,
   Path,
   useController,
   UseControllerProps,
 } from 'react-hook-form';
-import { StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+/** Props giúp bàn phím tiếng Việt / IME hoạt động ổn trên iOS & Android */
+export const vietnameseTextInputProps = {
+  autoCorrect: true,
+  spellCheck: true,
+  autoComplete: 'off' as const,
+  textContentType: 'none' as const,
+} satisfies Partial<TextInputProps>;
+
+function toInputString(value: unknown): string {
+  if (value == null) return '';
+  return String(value);
+}
+
+const NON_VI_KEYBOARD_TYPES: TextInputProps['keyboardType'][] = [
+  'phone-pad',
+  'number-pad',
+  'decimal-pad',
+  'numeric',
+  'email-address',
+];
 
 type OwnProps = TextInputProps & {
   label?: string;
@@ -45,6 +73,7 @@ function ControlledAppInput<T extends FieldValues>({
   control,
   rules,
   defaultValue,
+  keyboardType,
   ...inputProps
 }: ControlledProps<T>) {
   const {
@@ -52,23 +81,69 @@ function ControlledAppInput<T extends FieldValues>({
     fieldState: { error },
   } = useController({ name, control, rules, defaultValue });
 
+  const displayValue =
+    value == null || value === undefined ? '' : String(value);
+
   return (
     <BaseAppInput
       label={label}
       style={style}
-      value={value ?? ''}
+      value={displayValue}
       onChangeText={onChange}
       onBlur={onBlur}
       errorText={error?.message ?? errorText}
+      keyboardType={keyboardType}
       {...inputProps}
     />
   );
 }
 
 // Component nền tảng: render UI thuần
-function BaseAppInput({ label, errorText, style, secureTextEntry, ...props }: OwnProps) {
+function BaseAppInput({
+  label,
+  errorText,
+  style,
+  secureTextEntry,
+  value,
+  onChangeText,
+  onFocus,
+  onBlur,
+  keyboardType,
+  ...props
+}: OwnProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const isPassword = secureTextEntry;
+  const isControlled = value !== undefined;
+  const externalValue = toInputString(value);
+  const [text, setText] = useState(() => (isControlled ? externalValue : ''));
+  const isFocusedRef = useRef(false);
+
+  // Tránh ghi đè chữ đang gõ (Telex/VNI/IME) khi react-hook-form re-render
+  useEffect(() => {
+    if (!isControlled || isFocusedRef.current) return;
+    setText(externalValue);
+  }, [externalValue, isControlled]);
+
+  const viProps =
+    keyboardType && NON_VI_KEYBOARD_TYPES.includes(keyboardType)
+      ? {}
+      : vietnameseTextInputProps;
+
+  const handleChangeText = (next: string) => {
+    setText(next);
+    onChangeText?.(next);
+  };
+
+  const handleFocus: TextInputProps['onFocus'] = (e) => {
+    isFocusedRef.current = true;
+    onFocus?.(e);
+  };
+
+  const handleBlur: TextInputProps['onBlur'] = (e) => {
+    isFocusedRef.current = false;
+    if (isControlled) setText(externalValue);
+    onBlur?.(e);
+  };
 
   return (
     <View style={styles.container}>
@@ -78,6 +153,12 @@ function BaseAppInput({ label, errorText, style, secureTextEntry, ...props }: Ow
           style={[styles.input, style]}
           placeholderTextColor={AppEco.textMuted}
           secureTextEntry={isPassword && !isPasswordVisible}
+          value={text}
+          onChangeText={handleChangeText}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          keyboardType={keyboardType ?? 'default'}
+          {...viProps}
           {...props}
         />
         {isPassword && (

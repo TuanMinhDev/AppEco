@@ -29,8 +29,9 @@ export interface MessageData {
   conversationId: string;
   senderId: string;
   content: string;
-  messageType: "text" | "image" | "file";
-  imageUrl?: string;
+  messageType: "text" | "image" | "video" | "file";
+  imageUrl?: string | null;
+  videoUrl?: string | null;
   replyTo?: string;
   createdAt: string;
   sender: string;

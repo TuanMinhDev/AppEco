@@ -1,6 +1,7 @@
 import { useListOrder } from '@/api/order/order.api';
 import type { OrderListResponse } from '@/api/order/order.type';
 import { getOrderLineProductId } from '@/api/order/order.utils';
+import { invalidateRecommendationQueries } from '@/api/ai/ai.api';
 import { apiClient } from '@/src/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError, AxiosResponse } from 'axios';
@@ -76,6 +77,7 @@ export const useCreateComment = (productId: string) => {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [commentKey.BY_PRODUCT, productId] });
       void qc.invalidateQueries({ queryKey: [commentKey.REVIEWABLE_ITEMS] });
+      void invalidateRecommendationQueries(qc);
     },
     onError: (error) => {
       const status = (error as AxiosError)?.response?.status;

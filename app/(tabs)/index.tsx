@@ -1,10 +1,11 @@
-import { useRecommendedProducts } from '@/api/ai/ai.api';
+import { usePopularProducts } from '@/api/ai/ai.api';
 import { useListProduct } from '@/api/product/product.api';
 import type { GetProductQuery, Product } from '@/api/product/product.type';
-import { useGetCurrentUser } from '@/api/user/user.api';
+import { useGetCurrentUser, useRecentViews } from '@/api/user/user.api';
 import { ProductItem } from '@/components/commom/ProductItem';
 import { AppEco } from '@/constants/theme';
 import { useAuthSocket } from '@/hooks/useAuthSocket';
+import { useFilteredRecommendations } from '@/hooks/useFilteredRecommendations';
 import { FontAwesome, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,6 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const RECOMMEND_PRODUCT_LIMIT = 8;
 
 /** Carousel: mỗi slide full-width để paging + indicator khớp */
 const BANNER_PAGE_WIDTH = SCREEN_WIDTH;
@@ -37,15 +39,13 @@ type HomeCategory = {
     id: string;
     label: string;
     icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-    mode: 'filter' | 'navigate';
-    href?: Href;
+    href: Href;
 };
 
 const CATEGORIES: HomeCategory[] = [
-    { id: 'hot', label: 'Hot Sale', icon: 'fire', mode: 'filter' },
-    { id: 'new', label: 'Mới nhất', icon: 'star-outline', mode: 'filter' },
-    { id: 'fav', label: 'Yêu thích', icon: 'heart', mode: 'navigate', href: '/favorites' },
-    { id: 'explore', label: 'Khám phá', icon: 'compass-outline', mode: 'navigate', href: '/(tabs)/search' },
+    { id: 'hot', label: 'Hot sale', icon: 'fire', href: '/(tabs)/search' as Href },
+    { id: 'categories', label: 'Thể loại', icon: 'shape-outline', href: '/categories' as Href },
+    { id: 'fav', label: 'Yêu thích', icon: 'heart', href: '/favorites' },
 ];
 
 type PromoBanner = {
@@ -102,11 +102,11 @@ export default function HomeScreen() {
         },
     });
     
-    const [activeCat, setActiveCat] = useState<HomeCategory['id']>('hot');
     const [currentAutoBannerIndex, setCurrentAutoBannerIndex] = useState(0);
     const autoBannerRef = useRef<FlatList>(null);
 
-    const { data: currentUser } = useGetCurrentUser();
+    const { data: currentUser, isSuccess: userOk } = useGetCurrentUser();
+    const isLoggedIn = userOk && !!currentUser?._id;
     const { data: dataProduct } = useListProduct();
     const products = dataProduct?.data?.items ?? [];
     
@@ -114,28 +114,83 @@ export default function HomeScreen() {
     const { notifications } = useAuthSocket();
     const unreadCount = notifications.unreadCount;
     
-    // AI Recommendations
-    const { data: recommendData, isLoading: isLoadingRecommend } = useRecommendedProducts(6);
+    // AI Recommendations — lọc SP đã mua / yêu thích / trong giỏ
+    const { data: recommendData, isLoading: isLoadingRecommend } = useFilteredRecommendations(
+        RECOMMEND_PRODUCT_LIMIT,
+        isLoggedIn,
+    );
+    const { data: popularData, isLoading: isLoadingPopular } = usePopularProducts(RECOMMEND_PRODUCT_LIMIT, {
+        enabled: !isLoggedIn,
+    });
+    const displayRecommendData = isLoggedIn ? recommendData : popularData;
+    const displayRecommendLoading = isLoggedIn ? isLoadingRecommend : isLoadingPopular;
 
-    const homeProducts = useMemo(() => {
-        const list = [...products];
-        if (activeCat === 'hot') {
-            return list
-                .filter((p) => p.sale != null && p.sale > 0)
-                .sort((a, b) => (b.sale ?? 0) - (a.sale ?? 0));
+    const { data: recentViewsRes } = useRecentViews(isLoggedIn, 10);
+    const recentProducts = useMemo((): Product[] => {
+        const items = recentViewsRes?.items ?? [];
+        return items
+            .map((row) => row.product)
+            .filter((p): p is Product => !!p?._id)
+            .map((p) => ({
+                _id: p._id,
+                name: p.name,
+                images: p.images ?? [],
+                variants: (p.variants ?? []).map((v) => ({
+                    color: v.color ?? '',
+                    size: v.size ?? '',
+                    price: v.price ?? 0,
+                    stock: v.stock ?? 0,
+                    sold: v.sold ?? 0,
+                })),
+                sale: p.sale ?? null,
+                sellerId: typeof p.sellerId === 'string' ? p.sellerId : p.sellerId?._id ?? '',
+                categoryId: typeof p.categoryId === 'string' ? p.categoryId : p.categoryId?._id ?? '',
+                description: p.description ?? '',
+                createdAt: p.createdAt ?? '',
+                updatedAt: p.updatedAt ?? '',
+            }));
+    }, [recentViewsRes?.items]);
+
+    const homeSections = useMemo(() => {
+        const sections: { type: 'categories' | 'autobanner' | 'recentViews' | 'recommendations' | 'flashsale' }[] = [
+            { type: 'categories' },
+            { type: 'autobanner' },
+        ];
+        if (isLoggedIn && recentProducts.length > 0) {
+            sections.push({ type: 'recentViews' });
         }
-        if (activeCat === 'new') {
-            return list.sort(
-                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-            );
-        }
-        return list;
-    }, [products, activeCat]);
+        sections.push({ type: 'recommendations' });
+        return sections;
+    }, [isLoggedIn, recentProducts.length]);
 
-    const homeGridProducts = useMemo(() => homeProducts.slice(0, 10), [homeProducts]);
+    const recommendedProducts = useMemo((): Product[] => {
+        const list = displayRecommendData?.products ?? [];
+        return list.slice(0, RECOMMEND_PRODUCT_LIMIT).map((product) => ({
+            _id: product._id,
+            name: product.name,
+            images: product.image ? [product.image] : [],
+            variants: [{
+                color: '',
+                size: '',
+                price: product.price,
+                sold: 0,
+                stock: 0,
+            }],
+            sale: product.sale,
+            sellerId: '',
+            categoryId: '',
+            description: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }));
+    }, [displayRecommendData]);
 
-    const sectionTitle =
-        activeCat === 'hot' ? 'Ưu đãi nổi bật' : activeCat === 'new' ? 'Hàng mới về' : 'Sản phẩm Eco';
+    const flashSaleProducts = useMemo(() => {
+        return [...products]
+            .filter((p) => p.sale != null && p.sale > 0)
+            .reverse()
+            .slice(0, 6);
+    }, [products]);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -160,11 +215,7 @@ export default function HomeScreen() {
     };
 
     const handleCategoryPress = (cat: HomeCategory) => {
-        if (cat.mode === 'navigate' && cat.href) {
-            router.push(cat.href);
-            return;
-        }
-        setActiveCat(cat.id);
+        router.push(cat.href);
     };
 
     return (
@@ -184,23 +235,7 @@ export default function HomeScreen() {
                                     
                                 </View>
                             </View>
-                            <TouchableOpacity
-                                style={styles.notificationBtn}
-                                onPress={() => router.push('/(tabs)/notifications')}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityLabel="Thông báo"
-                            >
-                                <Ionicons name="notifications-outline" size={22} color={AppEco.primary} />
-                                {/* Badge hiển thị số thông báo chưa đọc */}
-                                {unreadCount > 0 && (
-                                    <View style={styles.notificationBadge}>
-                                        <Text style={styles.notificationBadgeText}>
-                                            {unreadCount > 99 ? '99+' : unreadCount}
-                                        </Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
+                            
                         </View>
 
                         {/* Search Bar */}
@@ -223,7 +258,7 @@ export default function HomeScreen() {
                         </View>
                     </View>
                     <FlatList
-                        data={[{ type: 'categories' }, { type: 'autobanner' }, { type: 'recommendations' }, { type: 'products' }]}
+                        data={homeSections}
                         renderItem={({ item }) => {
                             if (item.type === 'categories') {
                                 return (
@@ -234,36 +269,25 @@ export default function HomeScreen() {
                                             showsHorizontalScrollIndicator={false}
                                             contentContainerStyle={styles.categoriesList}
                                         >
-                                            {CATEGORIES.map((cat) => {
-                                                const active =
-                                                    cat.mode === 'filter' && cat.id === activeCat;
-                                                return (
+                                            {CATEGORIES.map((cat) => (
                                                     <TouchableOpacity
                                                         key={cat.id}
-                                                        style={[styles.categoryChip, active && styles.categoryChipActive]}
+                                                        style={styles.categoryChip}
                                                         onPress={() => handleCategoryPress(cat)}
                                                         activeOpacity={0.85}
                                                     >
-                                                        <View
-                                                            style={[
-                                                                styles.categoryIconSmall,
-                                                                active && styles.categoryIconSmallActive,
-                                                            ]}
-                                                        >
+                                                        <View style={styles.categoryIconSmall}>
                                                             <MaterialCommunityIcons
                                                                 name={cat.icon}
                                                                 size={20}
-                                                                color={active ? '#fff' : AppEco.primary}
+                                                                color={AppEco.primary}
                                                             />
                                                         </View>
-                                                        <Text
-                                                            style={[styles.categoryChipLabel, active && styles.categoryChipLabelActive]}
-                                                        >
+                                                        <Text style={styles.categoryChipLabel}>
                                                             {cat.label}
                                                         </Text>
                                                     </TouchableOpacity>
-                                                );
-                                            })}
+                                                ))}
                                         </ScrollView>
                                     </View>
                                 );
@@ -402,83 +426,54 @@ export default function HomeScreen() {
                                 );
                             }
 
-                            if (item.type === 'recommendations') {
-                                const recommendedProducts = recommendData?.products || [];
-                                
+                            if (item.type === 'recentViews') {
                                 return (
-                                    <View style={styles.recommendSection}>
-                                        <View style={styles.sectionHeader}>
-                                            <View style={styles.sectionTitleBlock}>
-                                                <View style={styles.aiRecommendBadge}>
-                                                    <MaterialCommunityIcons
-                                                        name="robot-happy-outline"
-                                                        size={18}
-                                                        color="#fff"
-                                                    />
-                                                    <Text style={styles.aiRecommendBadgeText}>Gợi ý cho bạn</Text>
-                                                </View>
-                                                <Text style={styles.sectionHint}>
-                                                    {recommendData?.algorithm ? 
-                                                        `Dựa trên ${recommendData.algorithm}` : 
-                                                        'Được chọn riêng cho bạn'}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                        
-                                        {isLoadingRecommend ? (
+                                    <View style={styles.homeProductSection}>
+                                        <Text style={styles.sectionTitleGreen}>Đã xem gần đây</Text>
+                                        <ScrollView
+                                            horizontal
+                                            showsHorizontalScrollIndicator={false}
+                                            contentContainerStyle={styles.recentViewsRow}
+                                        >
+                                            {recentProducts.map((product) => (
+                                                <ProductItem
+                                                    key={product._id}
+                                                    product={product}
+                                                    cardWidth={CARD_WIDTH}
+                                                    style={styles.recentViewCard}
+                                                />
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                );
+                            }
+
+                            if (item.type === 'recommendations') {
+                                return (
+                                    <View style={styles.homeProductSection}>
+                                        <Text style={styles.sectionTitleGreen}>Gợi ý của tôi</Text>
+
+                                        {displayRecommendLoading ? (
                                             <View style={styles.loadingContainer}>
                                                 <ActivityIndicator size="large" color={AppEco.primary} />
                                                 <Text style={styles.loadingText}>Đang tìm sản phẩm phù hợp...</Text>
                                             </View>
                                         ) : recommendedProducts.length > 0 ? (
-                                            <ScrollView
-                                                horizontal
-                                                showsHorizontalScrollIndicator={false}
-                                                contentContainerStyle={styles.recommendScroll}
-                                            >
-                                                {recommendedProducts.map((product) => {
-                                                    // Convert recommended product to Product type
-                                                    const productData: Product = {
-                                                        _id: product._id,
-                                                        name: product.name,
-                                                        images: product.image ? [product.image] : [],
-                                                        variants: [{
-                                                            color: '',
-                                                            size: '',
-                                                            price: product.price,
-                                                            sold: 0,
-                                                            stock: 0,
-                                                        }],
-                                                        sale: product.sale,
-                                                        sellerId: '',
-                                                        categoryId: '',
-                                                        description: '',
-                                                        createdAt: new Date().toISOString(),
-                                                        updatedAt: new Date().toISOString(),
-                                                    };
-                                                    
-                                                    return (
-                                                        <View key={product._id} style={styles.recommendCard}>
-                                                            <ProductItem
-                                                                product={productData}
-                                                                cardWidth={CARD_WIDTH}
-                                                            />
-                                                            {product.reason && (
-                                                                <View style={styles.reasonBadge}>
-                                                                    <MaterialCommunityIcons
-                                                                        name="lightbulb-on-outline"
-                                                                        size={12}
-                                                                        color="#8B5CF6"
-                                                                    />
-                                                                    <Text style={styles.reasonText} numberOfLines={1}>
-                                                                        {product.reason}
-                                                                    </Text>
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    );
-                                                })}
-                                            </ScrollView>
+                                            <FlatList
+                                                data={recommendedProducts}
+                                                numColumns={2}
+                                                columnWrapperStyle={styles.productRow}
+                                                renderItem={({ item: product }) => (
+                                                    <ProductItem
+                                                        product={product}
+                                                        cardWidth={CARD_WIDTH}
+                                                        style={{ marginBottom: 12 }}
+                                                        viewFrom="recommend"
+                                                    />
+                                                )}
+                                                keyExtractor={(p: Product) => p._id}
+                                                scrollEnabled={false}
+                                            />
                                         ) : (
                                             <View style={styles.emptyRecommend}>
                                                 <MaterialCommunityIcons
@@ -498,76 +493,47 @@ export default function HomeScreen() {
                                 );
                             }
 
-                            if (item.type === 'products') {
-                                return (
-                                    <View style={styles.productsSection}>
-                                        {homeGridProducts.length > 0 ? (
-                                            <>
-                                                <View style={styles.sectionHeader}>
-                                                    <View style={styles.sectionTitleBlock}>
-                                                        <View style={styles.ecoBadge}>
-                                                            <MaterialCommunityIcons
-                                                                name="leaf"
-                                                                size={16}
-                                                                color="#fff"
-                                                            />
-                                                            <Text style={styles.ecoBadgeText}>{sectionTitle}</Text>
-                                                        </View>
-                                                        <Text style={styles.sectionHint}>
-                                                            {activeCat === 'hot'
-                                                                ? 'Ưu đãi đang áp dụng'
-                                                                : activeCat === 'new'
-                                                                  ? 'Mới cập nhật gần đây'
-                                                                  : 'Chọn lọc thân thiện môi trường'}
-                                                        </Text>
-                                                    </View>
-                                                    <TouchableOpacity
-                                                        style={styles.seeAllBtn}
-                                                        onPress={() => router.push('/(tabs)/search')}
-                                                        activeOpacity={0.85}
-                                                    >
-                                                        <Text style={styles.seeAllText}>Xem thêm</Text>
-                                                        <Ionicons name="chevron-forward" size={16} color={AppEco.primary} />
-                                                    </TouchableOpacity>
-                                                </View>
-                                                <FlatList
-                                                    data={homeGridProducts}
-                                                    numColumns={2}
-                                                    columnWrapperStyle={styles.productRow}
-                                                    renderItem={({ item: product }) => (
-                                                        <ProductItem
-                                                            product={product}
-                                                            cardWidth={CARD_WIDTH}
-                                                            style={{ marginBottom: 12 }}
-                                                        />
-                                                    )}
-                                                    keyExtractor={(p: Product) => p._id}
-                                                    scrollEnabled={false}
-                                                />
-                                            </>
-                                        ) : (
-                                            <View style={styles.emptyState}>
-                                                <MaterialCommunityIcons
-                                                    name="shopping-outline"
-                                                    size={48}
-                                                    color={AppEco.border}
-                                                />
-                                                <Text style={styles.emptyText}>
-                                                    {activeCat === 'hot'
-                                                        ? 'Chưa có sản phẩm đang giảm giá'
-                                                        : 'Chưa có sản phẩm để hiển thị'}
-                                                </Text>
-                                                <TouchableOpacity
-                                                    style={styles.emptyCta}
-                                                    onPress={() => router.push('/(tabs)/search')}
-                                                >
-                                                    <Text style={styles.emptyCtaText}>Mở tìm kiếm</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        )}
-                                    </View>
-                                );
-                            }
+                            // if (item.type === 'flashsale') {
+                            //     return (
+                            //         <View style={styles.homeProductSection}>
+                            //             <Text style={styles.sectionTitleGreen}>Giảm giá sốc</Text>
+
+                            //             {flashSaleProducts.length > 0 ? (
+                            //                 <FlatList
+                            //                     data={flashSaleProducts}
+                            //                     numColumns={2}
+                            //                     columnWrapperStyle={styles.productRow}
+                            //                     renderItem={({ item: product }) => (
+                            //                         <ProductItem
+                            //                             product={product}
+                            //                             cardWidth={CARD_WIDTH}
+                            //                             style={{ marginBottom: 12 }}
+                            //                         />
+                            //                     )}
+                            //                     keyExtractor={(p: Product) => p._id}
+                            //                     scrollEnabled={false}
+                            //                 />
+                            //             ) : (
+                            //                 <View style={styles.emptyState}>
+                            //                     <MaterialCommunityIcons
+                            //                         name="shopping-outline"
+                            //                         size={48}
+                            //                         color={AppEco.border}
+                            //                     />
+                            //                     <Text style={styles.emptyText}>
+                            //                         Chưa có sản phẩm đang giảm giá
+                            //                     </Text>
+                            //                     <TouchableOpacity
+                            //                         style={styles.emptyCta}
+                            //                         onPress={() => router.push('/(tabs)/search')}
+                            //                     >
+                            //                         <Text style={styles.emptyCtaText}>Mở tìm kiếm</Text>
+                            //                     </TouchableOpacity>
+                            //                 </View>
+                            //             )}
+                            //         </View>
+                            //     );
+                            // }
 
                             return null;
                         }}
@@ -583,7 +549,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: AppEco.background,
+        backgroundColor: '#FFFFFF',
     },
 
     // Modern Header
@@ -607,7 +573,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: AppEco.surfaceMuted,
+        backgroundColor: '#F3F4F6',
         borderWidth: 1.5,
         borderColor: AppEco.border,
         justifyContent: 'center',
@@ -635,7 +601,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: AppEco.primaryMuted,
+        backgroundColor: '#F3F4F6',
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
@@ -717,7 +683,7 @@ const styles = StyleSheet.create({
     mainContent: {
         paddingHorizontal: 0,
         paddingBottom: 32,
-        backgroundColor: AppEco.background,
+        backgroundColor: '#FFFFFF',
         gap: 16,
     },
 
@@ -729,7 +695,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: AppEco.borderSoft,
+        borderColor: '#F3F4F6',
         ...AppEco.shadowCard,
     },
 
@@ -770,28 +736,18 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: AppEco.border,
     },
-    categoryChipActive: {
-        backgroundColor: AppEco.primary,
-        borderColor: AppEco.primary,
-    },
     categoryIconSmall: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: AppEco.primaryMuted,
+        backgroundColor: '#F3F4F6',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    categoryIconSmallActive: {
-        backgroundColor: 'rgba(255,255,255,0.25)',
     },
     categoryChipLabel: {
         fontSize: 13,
         fontWeight: '600',
         color: AppEco.textSecondary,
-    },
-    categoryChipLabelActive: {
-        color: '#fff',
     },
 
     // Hero carousel (ảnh + gradient + typography)
@@ -942,7 +898,7 @@ const styles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: AppEco.border,
+        backgroundColor: '#E5E7EB',
     },
     autoBannerDotActive: {
         backgroundColor: AppEco.primary,
@@ -992,9 +948,23 @@ const styles = StyleSheet.create({
         color: AppEco.primary,
     },
 
-    // Products Section
-    productsSection: {
-        marginBottom: 0,
+    // Home product sections
+    homeProductSection: {
+        marginBottom: 24,
+    },
+    sectionTitleGreen: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: AppEco.success,
+        paddingHorizontal: 16,
+        marginBottom: 16,
+    },
+    recentViewsRow: {
+        paddingHorizontal: 16,
+        gap: 12,
+    },
+    recentViewCard: {
+        marginRight: 12,
     },
     productCardWrapper: {
         marginBottom: 12,
@@ -1002,7 +972,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: AppEco.borderSoft,
+        borderColor: '#F3F4F6',
         ...AppEco.shadowCard,
     },
     productsHeader: {
@@ -1098,46 +1068,6 @@ const styles = StyleSheet.create({
     // AI Recommendations Section
     recommendSection: {
         marginBottom: 8,
-    },
-    aiRecommendBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        alignSelf: 'flex-start',
-        backgroundColor: '#8B5CF6',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
-    aiRecommendBadgeText: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    recommendScroll: {
-        paddingHorizontal: 16,
-        gap: 12,
-    },
-    recommendCard: {
-        width: CARD_WIDTH,
-    },
-    reasonBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: '#F3E8FF',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-        marginTop: 8,
-        borderWidth: 1,
-        borderColor: '#DDD6FE',
-    },
-    reasonText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#8B5CF6',
-        flex: 1,
     },
     loadingContainer: {
         alignItems: 'center',

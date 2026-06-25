@@ -1,3 +1,4 @@
+import { invalidateRecommendationQueries } from '@/api/ai/ai.api';
 import { apiClient, type ApiResponse } from '@/src/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
@@ -88,6 +89,7 @@ export const useCreateCart = (props?: {
       cartApis.addLine(item).then((res) => res.data),
     onSuccess: (data, variables) => {
       void queryClient.invalidateQueries({ queryKey: [cartKey.LIST_CART] });
+      void invalidateRecommendationQueries(queryClient);
       onSuccess?.(data, variables);
     },
     onError,
@@ -114,6 +116,7 @@ export const useUpdateCartQuantity = (props?: {
     }) => cartApis.updateItemQuantity(itemId, payload),
     onSuccess: (data, variables) => {
       void queryClient.invalidateQueries({ queryKey: [cartKey.LIST_CART] });
+      void invalidateRecommendationQueries(queryClient);
       onSuccess?.(data, variables);
     },
     onError,
@@ -135,6 +138,7 @@ export const useDeleteCart = (props?: {
       cartApis.deleteItems(payload).then((res) => res.data),
     onSuccess: (data, variables) => {
       void queryClient.invalidateQueries({ queryKey: [cartKey.LIST_CART] });
+      void invalidateRecommendationQueries(queryClient);
       onSuccess?.(data, variables);
     },
     onError,

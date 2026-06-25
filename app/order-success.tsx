@@ -1,31 +1,27 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppEco } from '@/constants/theme';
+import { useAppDispatch, useAppSelector } from '@/src/store';
+import {
+  clearOrderSuccess,
+  selectOrderSuccess,
+} from '@/src/store/slices/checkoutSlice';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo } from 'react';
+import { router } from 'expo-router';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type ReviewItem = { id: string; name: string };
-
 export default function OrderSuccessScreen() {
-  const { items: itemsEnc, codes } = useLocalSearchParams<{ items?: string; codes?: string }>();
+  const dispatch = useAppDispatch();
+  const orderSuccess = useAppSelector(selectOrderSuccess);
+  const items = orderSuccess?.items ?? [];
+  const codesLine = orderSuccess?.codes?.join(', ') ?? '';
 
-  const items = useMemo((): ReviewItem[] => {
-    if (!itemsEnc) return [];
-    try {
-      const raw = decodeURIComponent(String(itemsEnc));
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return [];
-      return parsed
-        .filter((x): x is ReviewItem => !!x && typeof x === 'object' && typeof (x as ReviewItem).id === 'string')
-        .map((x) => ({ id: x.id, name: typeof x.name === 'string' ? x.name : 'Sản phẩm' }));
-    } catch {
-      return [];
-    }
-  }, [itemsEnc]);
-
-  const codesLine = codes ? String(codes).split('|').filter(Boolean).join(', ') : '';
+  const leave = (path: '/orders' | '/(tabs)') => {
+    dispatch(clearOrderSuccess());
+    router.replace(path as never);
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -43,30 +39,33 @@ export default function OrderSuccessScreen() {
         ) : (
           items.map((it) => (
             <View key={it.id} style={styles.row}>
-              <View style={styles.rowIcon}>
-                <MaterialCommunityIcons name="package-variant" size={22} color={AppEco.primary} />
-              </View>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowName} numberOfLines={2}>
-                  {it.name}
-                </Text>
-                <TouchableOpacity
-                  style={styles.reviewBtn}
-                  onPress={() => router.push(`/product/${it.id}?review=1` as any)}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="star-outline" size={16} color={AppEco.primaryDark} />
-                  <Text style={styles.reviewBtnText}>Đánh giá</Text>
-                </TouchableOpacity>
-              </View>
+              {it.image ? (
+                <Image
+                  source={{ uri: it.image }}
+                  style={styles.thumb}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <View style={styles.thumbPlaceholder}>
+                  <MaterialCommunityIcons name="image-off-outline" size={22} color={AppEco.textMuted} />
+                </View>
+              )}
+              <Text style={styles.rowName} numberOfLines={2}>
+                {it.name}
+              </Text>
             </View>
           ))
         )}
-        <TouchableOpacity style={styles.primary} onPress={() => router.replace('/orders' as any)} activeOpacity={0.9}>
+        <Text style={styles.reviewHint}>
+          Bạn có thể đánh giá sản phẩm sau khi đơn hàng được giao thành công.
+        </Text>
+        <TouchableOpacity style={styles.primary} onPress={() => leave('/orders')} activeOpacity={0.9}>
           <Text style={styles.primaryText}>Đơn hàng của tôi</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondary} onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.secondary} onPress={() => leave('/(tabs)')} activeOpacity={0.85}>
           <Text style={styles.secondaryText}>Về trang chủ</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -109,34 +108,36 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: AppEco.surface,
     borderRadius: AppEco.radiusMd,
-    padding: 14,
+    padding: 12,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: AppEco.borderSoft,
   },
-  rowIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: AppEco.radiusMd,
-    backgroundColor: AppEco.primaryMuted,
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: AppEco.radiusSm,
+    backgroundColor: AppEco.borderSoft,
+  },
+  thumbPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: AppEco.radiusSm,
+    backgroundColor: AppEco.surfaceMuted,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  rowBody: { flex: 1, gap: 10 },
-  rowName: { fontSize: 15, fontWeight: '700', color: AppEco.text },
-  reviewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: AppEco.radiusMd,
-    backgroundColor: AppEco.primaryMuted,
     borderWidth: 1,
-    borderColor: AppEco.border,
+    borderColor: AppEco.borderSoft,
   },
-  reviewBtnText: { color: AppEco.primaryDark, fontWeight: '800', fontSize: 13 },
+  rowName: { flex: 1, fontSize: 15, fontWeight: '700', color: AppEco.text, lineHeight: 21 },
+  reviewHint: {
+    alignSelf: 'stretch',
+    fontSize: 13,
+    color: AppEco.textMuted,
+    lineHeight: 20,
+    marginTop: 4,
+    marginBottom: 4,
+  },
   primary: {
     alignSelf: 'stretch',
     marginTop: 20,

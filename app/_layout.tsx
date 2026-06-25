@@ -10,7 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppProviders } from '@/src/providers';
 
 export const unstable_settings = {
-  anchor: '(auth)',
+  initialRouteName: '(auth)',
 };
 
 export default function RootLayout() {
@@ -31,9 +31,11 @@ export default function RootLayout() {
             <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="addresses" options={{ headerShown: false }} />
             <Stack.Screen name="favorites" options={{ headerShown: false }} />
+            <Stack.Screen name="categories" options={{ headerShown: false }} />
             <Stack.Screen name="add-address" options={{ headerShown: false }} />
-            <Stack.Screen name="conversations" options={{ headerShown: false }} />
-            <Stack.Screen name="chat/[conversationId]" options={{ headerShown: false }} />
+            <Stack.Screen name="conversations" options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen name="support-chat" options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen name="chat/[conversationId]" options={{ headerShown: false, animation: 'fade' }} />
             <Stack.Screen name="admin" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Cửa sổ' }} />
           </Stack>

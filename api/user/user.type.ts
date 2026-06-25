@@ -49,3 +49,34 @@ export interface SellerPublicShop {
   shopName: string;
   warehouse: SellerWarehousePublic | null;
 }
+
+export interface RecentViewItem {
+  productId: string;
+  viewedAt: string;
+  source: string;
+  product: {
+    _id: string;
+    name: string;
+    images: string[];
+    sale?: number | null;
+    variants: Array<{
+      color?: string;
+      size?: string;
+      price?: number;
+      stock?: number;
+      sold?: number;
+    }>;
+    categoryId?: string | { _id: string; name?: string };
+    sellerId?: string | { _id: string; name?: string };
+    description?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+}
+
+export interface RecentViewsResponse {
+  success: boolean;
+  message: string;
+  items: RecentViewItem[];
+  totalItems: number;
+}

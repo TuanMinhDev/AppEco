@@ -27,7 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   pending: { bg: '#FFFBEB', text: '#D97706', dot: '#F59E0B' },
   shipping: { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
-  delivered: { bg: '#ECFDF5', text: '#065F46', dot: '#10B981' },
+  delivered: { bg: '#F3F4F6', text: '#065F46', dot: '#10B981' },
   cancelled: { bg: '#FEF2F2', text: '#B91C1C', dot: '#EF4444' },
 };
 
@@ -169,7 +169,7 @@ export default function AdminOrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   filterRow: {
     flexDirection: 'row',

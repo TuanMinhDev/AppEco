@@ -1,5 +1,5 @@
 /**
- * Type definitions cho Message / Conversation.
+ * Type definitions cho Message / Conversation (user ↔ admin).
  */
 
 export interface UserSummary {
@@ -7,9 +7,9 @@ export interface UserSummary {
   name: string;
   email: string;
   avatar?: string;
+  role?: 'admin' | 'user' | string;
+  phoneNumber?: string;
 }
-
-// ─── Message ────────────────────────────────────────────────
 
 export interface ReadReceipt {
   userId: string;
@@ -21,27 +21,27 @@ export interface Message {
   conversationId: string;
   senderId: string | UserSummary;
   content: string;
-  messageType: 'text' | 'image';
-  imageUrl?: string;
-  isRead: ReadReceipt[];
+  messageType: 'text' | 'image' | 'video';
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  isRead?: ReadReceipt[];
   replyTo?: string | { _id: string; content: string; senderId: string | UserSummary };
-  editedAt?: string;
+  editedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
-
-// ─── Conversation ───────────────────────────────────────────
 
 export interface LastMessage {
   _id: string;
   content: string;
   senderId: string;
-  messageType: 'text' | 'image';
+  messageType: 'text' | 'image' | 'video';
   createdAt: string;
 }
 
 export interface Conversation {
   _id: string;
+  userId?: string | UserSummary;
   participants: UserSummary[];
   lastMessage?: LastMessage | null;
   lastMessageAt?: string | null;
@@ -54,13 +54,7 @@ export interface Conversation {
   updatedAt: string;
 }
 
-// ─── Request / Response ─────────────────────────────────────
-
-export interface CreateConversationRequest {
-  participantId: string;
-}
-
-export interface CreateConversationResponse {
+export interface MyConversationResponse {
   message: string;
   conversation: Conversation;
 }
@@ -70,12 +64,31 @@ export interface GetConversationsResponse {
   conversations: Conversation[];
 }
 
-export interface SendMessageRequest {
-  conversationId: string;
+export interface SendTextMessageRequest {
   content: string;
-  messageType?: 'text' | 'image';
-  imageUrl?: string;
+  conversationId?: string;
   replyTo?: string;
+}
+
+export interface SendMediaFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+export interface SendMediaMessageRequest {
+  file: SendMediaFile;
+  content?: string;
+  conversationId?: string;
+  replyTo?: string;
+}
+
+export type SendMessageRequest = SendTextMessageRequest | SendMediaMessageRequest;
+
+export function isMediaMessageRequest(
+  data: SendMessageRequest,
+): data is SendMediaMessageRequest {
+  return 'file' in data && !!data.file;
 }
 
 export interface SendMessageResponse {

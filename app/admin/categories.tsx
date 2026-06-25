@@ -171,11 +171,11 @@ export default function AdminCategoriesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   sheet: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: '#FFFFFF',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppEco.surface,
     borderRadius: AppEco.radiusMd,
     borderWidth: 1,
-    borderColor: AppEco.borderSoft,
+    borderColor: '#F3F4F6',
     overflow: 'hidden',
     ...AppEco.shadowCard,
   },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: AppEco.radiusSm,
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },

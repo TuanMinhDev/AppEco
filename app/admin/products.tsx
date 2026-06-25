@@ -157,7 +157,7 @@ export default function AdminProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   sheet: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   row: { justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 12 },

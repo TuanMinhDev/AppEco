@@ -55,6 +55,8 @@ export interface OrderShippingAddressSnapshot {
 export interface CreateOrderBody {
   sellerId: string;
   items: OrderLineItem[];
+  /** Chỉ gửi khi đặt từ giỏ — id dòng giỏ khớp từng item */
+  cartItemIds?: string[];
   shippingAddress: OrderShippingAddressSnapshot;
   shippingMethod: ShippingMethod;
   notes?: string;

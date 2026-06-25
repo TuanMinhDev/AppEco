@@ -7,7 +7,7 @@ export interface SellerSummary {
 
 export interface GetProductQuery {
   name?: string;
-  category?: string;
+  categoryId?: string;
   minPrice?: number;
   maxPrice?: number;
   onSale?: boolean;
@@ -25,6 +25,17 @@ export interface ProductVariant {
   stock: number;
   sold: number;
   price: number;
+}
+
+export type ProductViewSource = 'detail_page' | 'search' | 'recommend';
+
+export interface RecordProductViewPayload {
+  source?: ProductViewSource;
+}
+
+export interface RecordProductViewResponse {
+  success: boolean;
+  message: string;
 }
 
 export interface Product {

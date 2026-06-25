@@ -20,6 +20,7 @@ import {
     View
 } from 'react-native';
 import { getApiErrorMessage } from '@/utils/api-error-message';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PAGE_SIZE = 10;
 
@@ -44,6 +45,7 @@ function sellerIdString(sellerId: CartProductPopulated['sellerId']): string {
 }
 
 export default function CartScreen() {
+  const insets = useSafeAreaInsets();
   const toast = useToast();
   const dialog = useAppDialog();
   const dispatch = useAppDispatch();
@@ -162,6 +164,7 @@ export default function CartScreen() {
         if (!product) return null;
         return {
           _id: item._id,
+          cartItemId: item._id,
           sellerId: sellerIdString(product.sellerId),
           productId: {
             _id: product._id,
@@ -271,7 +274,7 @@ export default function CartScreen() {
         <ScreenHero
           title="Giỏ hàng"
           subtitle="Đăng nhập để xem và thanh toán sản phẩm"
-          balanceBack={false}
+          onBack={() => router.back()}
         />
         <View style={styles.guestContainer}>
           <MaterialCommunityIcons name="cart-outline" size={56} color={AppEco.textMuted} />
@@ -292,7 +295,11 @@ export default function CartScreen() {
   if (isLoading) {
     return (
       <View style={styles.safeArea}>
-        <ScreenHero title="Giỏ hàng" subtitle="Đang tải..." balanceBack={false} />
+        <ScreenHero
+          title="Giỏ hàng"
+          subtitle="Đang tải..."
+          onBack={() => router.back()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={AppEco.primary} />
           <Text style={styles.loadingText}>Đang tải giỏ hàng...</Text>
@@ -304,7 +311,7 @@ export default function CartScreen() {
   if (isError) {
     return (
       <View style={styles.safeArea}>
-        <ScreenHero title="Giỏ hàng" balanceBack={false} />
+        <ScreenHero title="Giỏ hàng" onBack={() => router.back()} />
         <View style={styles.errorContainer}>
           <MaterialCommunityIcons name="cart-off" size={60} color={AppEco.danger} />
           <Text style={styles.errorText}>Không thể tải giỏ hàng</Text>
@@ -328,7 +335,7 @@ export default function CartScreen() {
             ? `${allCartItems.length} sản phẩm`
             : 'Chọn sản phẩm để thanh toán'
         }
-        balanceBack={false}
+        onBack={() => router.back()}
         rightAction={
           allCartItems.length > 0 ? (
             <ScreenHeroChip
@@ -380,7 +387,12 @@ export default function CartScreen() {
           />
 
           {selectedItems.length > 0 && (
-            <View style={styles.bottomBar}>
+            <View
+              style={[
+                styles.bottomBar,
+                { paddingBottom: Math.max(insets.bottom, 12) + 16 },
+              ]}
+            >
               <View style={styles.bottomInfo}>
                 <Text style={styles.selectedCount}>
                   Đã chọn {selectedItems.length} sản phẩm
@@ -414,7 +426,7 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: '#FFFFFF',
   },
 
   // Loading & Error States
@@ -531,7 +543,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: AppEco.borderSoft,
+    borderColor: '#F3F4F6',
     ...AppEco.shadowCard,
   },
   checkbox: {
@@ -594,7 +606,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: AppEco.primaryMuted,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -613,9 +625,9 @@ const styles = StyleSheet.create({
   bottomBar: {
     backgroundColor: AppEco.surface,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
     borderTopWidth: 1.5,
-    borderTopColor: AppEco.borderSoft,
+    borderTopColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,

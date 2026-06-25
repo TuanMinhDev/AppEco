@@ -18,6 +18,7 @@ import { AppEco } from '@/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/src/store';
 import {
   clearCheckout,
+  setOrderSuccess,
   selectCheckoutItems,
   selectCheckoutNotes,
   selectCheckoutTotals,
@@ -31,7 +32,7 @@ import {
   setShippingInfo,
 } from '@/src/store/slices/checkoutSlice';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAccessToken } from '@/src/auth/token-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -223,7 +224,7 @@ function CheckoutScreenInner() {
       return;
     }
 
-    const token = await AsyncStorage.getItem('token');
+    const token = await getAccessToken();
     if (!token) {
       toast.showError('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại');
       return;
@@ -252,7 +253,13 @@ function CheckoutScreenInner() {
       dispatch(setError(null));
 
       const created: string[] = [];
+      let orderedFromCart = false;
       for (const [sellerId, lines] of bySeller) {
+        const cartItemIds = lines
+          .map((item) => item.cartItemId)
+          .filter((id): id is string => !!id);
+        if (cartItemIds.length > 0) orderedFromCart = true;
+
         const body: CreateOrderBody = {
           sellerId,
           items: lines.map((item) => ({
@@ -264,6 +271,7 @@ function CheckoutScreenInner() {
             quantity: item.quantity,
             price: item.price,
           })),
+          ...(cartItemIds.length > 0 ? { cartItemIds } : {}),
           shippingMethod: selectedShipping as ShippingMethod,
           shippingAddress: snap,
           notes: getValues('notes')?.trim() || undefined,
@@ -273,27 +281,33 @@ function CheckoutScreenInner() {
         else if (order?._id) created.push(order._id);
       }
 
-      await invalidateQueriesAfterOrderCreated(queryClient);
-      const reviewItemsMap = new Map<string, string>();
-      for (const [, sellerLines] of bySeller) {
-        for (const line of sellerLines) {
-          reviewItemsMap.set(line.productId._id, line.productId.name);
-        }
+      await invalidateQueriesAfterOrderCreated(queryClient, {
+        refreshCart: orderedFromCart,
+      });
+
+      const successItemsMap = new Map<
+        string,
+        { id: string; name: string; image?: string }
+      >();
+      for (const line of items) {
+        successItemsMap.set(line.productId._id, {
+          id: line.productId._id,
+          name: line.productId.name,
+          image: line.productId.images?.[0],
+        });
       }
-      const reviewPayload = JSON.stringify(
-        [...reviewItemsMap.entries()].map(([pid, name]) => ({ id: pid, name }))
+
+      dispatch(
+        setOrderSuccess({
+          items: [...successItemsMap.values()],
+          codes: created,
+        }),
       );
       dispatch(clearCheckout());
       toast.showSuccess('Đặt hàng thành công!', {
         duration: 2000,
         onHidden: () => {
-          router.replace({
-            pathname: '/order-success',
-            params: {
-              items: encodeURIComponent(reviewPayload),
-              codes: created.join('|'),
-            },
-          } as any);
+          router.replace('/order-success' as never);
         },
       });
     } catch (e: unknown) {

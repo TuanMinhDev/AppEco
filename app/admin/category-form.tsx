@@ -198,13 +198,13 @@ export default function AdminCategoryFormScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: '#FFFFFF',
   },
   loadingWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: AppEco.background,
+    backgroundColor: '#FFFFFF',
     padding: 24,
     gap: 16,
   },
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   errorBtnText: { color: '#fff', fontWeight: '700' },
   sheetSafe: {
     flex: 1,
-    backgroundColor: AppEco.background,
+    backgroundColor: '#FFFFFF',
   },
   scroll: { flex: 1 },
   form: {

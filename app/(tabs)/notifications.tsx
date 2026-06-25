@@ -29,7 +29,7 @@ import { getApiErrorMessage } from '@/utils/api-error-message';
 function getIcon(type: string): { name: string; bg: string; color: string } {
   switch (type) {
     case 'order':
-      return { name: 'bag-handle-outline', bg: AppEco.surfaceMuted, color: AppEco.primary };
+      return { name: 'bag-handle-outline', bg: '#F3F4F6', color: AppEco.primary };
     case 'payment':
       return { name: 'card-outline', bg: '#F5F3FF', color: '#7C3AED' };
     case 'promotion':
@@ -37,12 +37,12 @@ function getIcon(type: string): { name: string; bg: string; color: string } {
     case 'system':
       return { name: 'settings-outline', bg: '#F1F5F9', color: '#475569' };
     case 'comment':
-      return { name: 'chatbubble-outline', bg: '#ECFDF5', color: '#059669' };
+      return { name: 'chatbubble-outline', bg: '#F3F4F6', color: '#059669' };
     case 'favorite':
       return { name: 'heart-outline', bg: '#FEF2F2', color: '#DC2626' };
     case 'general':
     default:
-      return { name: 'notifications-outline', bg: AppEco.surfaceMuted, color: AppEco.primary };
+      return { name: 'notifications-outline', bg: '#F3F4F6', color: AppEco.primary };
   }
 }
 
@@ -284,7 +284,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
 
   listContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24 },
   sep: { height: 8 },
@@ -296,11 +296,11 @@ const styles = StyleSheet.create({
     backgroundColor: AppEco.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: AppEco.borderSoft,
+    borderColor: '#F3F4F6',
     overflow: 'hidden',
   },
   cardUnread: {
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
     borderColor: AppEco.border,
   },
   cardMain: {
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 14,
     borderLeftWidth: 1,
-    borderLeftColor: AppEco.borderSoft,
+    borderLeftColor: '#F3F4F6',
   },
 
   emptyContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: AppEco.surfaceMuted,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },

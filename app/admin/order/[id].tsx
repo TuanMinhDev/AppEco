@@ -316,7 +316,7 @@ export default function AdminSellerOrderDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFF' },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   deny: { fontWeight: '800', color: '#475569' },
   link: { marginTop: 12, color: '#2563EB', fontWeight: '700' },

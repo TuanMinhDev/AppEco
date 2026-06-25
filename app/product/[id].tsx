@@ -7,16 +7,18 @@ import {
   useRemoveFavorite,
 } from '@/api/favorite/favorite.api';
 import { useDetailProduct } from '@/api/product/product.api';
-import type { Product } from '@/api/product/product.type';
+import type { Product, ProductViewSource } from '@/api/product/product.type';
 import { useGetCurrentUser } from '@/api/user/user.api';
 import { ProductDetailGallery } from '@/components/product/ProductDetailGallery';
 import { ProductReviews } from '@/components/product/ProductReviews';
 import { ProductVariantPicker } from '@/components/product/ProductVariantPicker';
 import { useToast } from '@/components/toast/ToastProvider';
 import { AppEco } from '@/constants/theme';
+import { useRecordProductView } from '@/hooks/useRecordProductView';
 import { useAppDispatch } from '@/src/store/index';
 import { addCheckoutItem, clearCheckout } from '@/src/store/slices/checkoutSlice';
 import { getApiErrorMessage } from '@/utils/api-error-message';
+import { resolveProductViewSource } from '@/utils/product-view-source';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -97,9 +99,11 @@ function MetaChip({
 function ProductDetailContent({
   product,
   review,
+  viewSource,
 }: {
   product: Product;
   review?: string;
+  viewSource: ProductViewSource;
 }) {
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -164,6 +168,7 @@ function ProductDetailContent({
 
   const { data: me, isSuccess: meOk } = useGetCurrentUser();
   const isLoggedIn = meOk && !!me?._id;
+  const isAdmin = me?.role === 'admin';
   const { data: favRes, isLoading: favListLoading } = useFavoritesList(isLoggedIn);
   const { mutate: addFavorite, isPending: addFavPending } = useAddFavorite();
   const { mutate: removeFavorite, isPending: removeFavPending } =
@@ -173,6 +178,8 @@ function ProductDetailContent({
     if (!isLoggedIn) return false;
     return (favRes?.favorites ?? []).some((p) => p._id === product._id);
   }, [isLoggedIn, favRes?.favorites, product._id]);
+
+  useRecordProductView(product._id, isLoggedIn, viewSource);
 
   const favActionBusy = addFavPending || removeFavPending;
 
@@ -374,26 +381,44 @@ function ProductDetailContent({
               color={headerScrolled ? AppEco.text : '#fff'}
             />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.floatBtn, headerScrolled && styles.floatBtnSolid]}
-            onPress={handleToggleFavorite}
-            disabled={isLoggedIn && (favListLoading || favActionBusy)}
-            accessibilityRole="button"
-            accessibilityLabel={isFavorite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
-          >
-            {isLoggedIn && (favListLoading || favActionBusy) ? (
-              <ActivityIndicator
-                size="small"
-                color={headerScrolled ? AppEco.primary : '#fff'}
-              />
-            ) : (
-              <Ionicons
-                name={isFavorite ? 'heart' : 'heart-outline'}
-                size={22}
-                color={isFavorite ? AppEco.danger : headerScrolled ? AppEco.text : '#fff'}
-              />
-            )}
-          </TouchableOpacity>
+          <View style={styles.stickyHeaderRight}>
+            <TouchableOpacity
+              style={[styles.floatBtn, headerScrolled && styles.floatBtnSolid]}
+              onPress={handleToggleFavorite}
+              disabled={isLoggedIn && (favListLoading || favActionBusy)}
+              accessibilityRole="button"
+              accessibilityLabel={isFavorite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+            >
+              {isLoggedIn && (favListLoading || favActionBusy) ? (
+                <ActivityIndicator
+                  size="small"
+                  color={headerScrolled ? AppEco.primary : '#fff'}
+                />
+              ) : (
+                <Ionicons
+                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  size={22}
+                  color={isFavorite ? AppEco.danger : headerScrolled ? AppEco.text : '#fff'}
+                />
+              )}
+            </TouchableOpacity>
+            {isAdmin ? (
+              <TouchableOpacity
+                style={[styles.floatBtn, headerScrolled && styles.floatBtnSolid]}
+                onPress={() =>
+                  router.push(`/admin/product-form?id=${product._id}` as never)
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Sửa sản phẩm"
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={22}
+                  color={headerScrolled ? AppEco.primary : '#fff'}
+                />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </SafeAreaView>
 
@@ -446,8 +471,13 @@ function ProductDetailContent({
 }
 
 export default function ProductDetailScreen() {
-  const { id, review } = useLocalSearchParams<{ id: string; review?: string }>();
+  const { id, review, from } = useLocalSearchParams<{
+    id: string;
+    review?: string;
+    from?: string;
+  }>();
   const productId = typeof id === 'string' ? id : id?.[0] ?? '';
+  const viewSource = resolveProductViewSource(from);
   const { data, isLoading } = useDetailProduct(productId);
   const product = data?.data?.data;
 
@@ -484,7 +514,14 @@ export default function ProductDetailScreen() {
     );
   }
 
-  return <ProductDetailContent key={product._id} product={product} review={review} />;
+  return (
+    <ProductDetailContent
+      key={product._id}
+      product={product}
+      review={review}
+      viewSource={viewSource}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -564,9 +601,15 @@ const styles = StyleSheet.create({
   stickyHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 4,
     paddingBottom: 8,
+  },
+  stickyHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   floatBtn: {
     width: 40,

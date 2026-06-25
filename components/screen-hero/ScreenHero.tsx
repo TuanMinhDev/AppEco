@@ -51,13 +51,15 @@ export function ScreenHero({
             <Ionicons name="chevron-back" size={26} color="#fff" />
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </View>
         {rightAction ??
           (onBack && balanceBack ? <View style={styles.sideSpacer} /> : null)}
       </View>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </LinearGradient>
   );
 }
@@ -124,7 +126,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 8,
+  },
+  titleBlock: {
+    flex: 1,
   },
   backBtn: {
     width: 40,
@@ -135,7 +139,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    flex: 1,
     fontSize: 28,
     fontWeight: '800',
     color: '#fff',
@@ -145,6 +148,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
     lineHeight: 22,
+    marginTop: 4,
   },
   sideSpacer: { width: 44 },
   addBtn: {

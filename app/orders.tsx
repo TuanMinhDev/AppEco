@@ -23,12 +23,18 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   pending: { bg: '#FFFBEB', text: AppEco.accent, dot: AppEco.accentSoft },
-  shipping: { bg: AppEco.surfaceMuted, text: AppEco.primaryDark, dot: AppEco.primary },
+  shipping: { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
   delivered: { bg: '#ECFDF5', text: '#065F46', dot: AppEco.success },
   cancelled: { bg: '#FEF2F2', text: AppEco.danger, dot: AppEco.danger },
 };
 
 const FILTERS = ['all', 'pending', 'shipping', 'delivered', 'cancelled'] as const;
+const ALL_FILTER_COLORS = {
+  bg: AppEco.primaryMuted,
+  text: AppEco.primaryDark,
+  dot: AppEco.primary,
+};
+
 const FILTER_LABELS: Record<string, string> = {
   all: 'Tất cả',
   pending: 'Chờ xác nhận',
@@ -36,6 +42,11 @@ const FILTER_LABELS: Record<string, string> = {
   delivered: 'Đã giao',
   cancelled: 'Đã huỷ',
 };
+
+function getFilterColors(filterKey: string) {
+  if (filterKey === 'all') return ALL_FILTER_COLORS;
+  return STATUS_COLORS[filterKey] ?? { bg: '#F3F4F6', text: '#6B7280', dot: '#9CA3AF' };
+}
 
 function formatPrice(n: number) {
   return n.toLocaleString('vi-VN') + 'đ';
@@ -133,16 +144,28 @@ export default function OrdersScreen() {
           showsHorizontalScrollIndicator={false}
           keyExtractor={(f) => f}
           contentContainerStyle={styles.filterList}
-          renderItem={({ item: f }) => (
-            <TouchableOpacity
-              style={[styles.filterTab, filter === f && styles.filterTabActive]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[styles.filterTabText, filter === f && styles.filterTabTextActive]}>
-                {FILTER_LABELS[f]}
-              </Text>
-            </TouchableOpacity>
-          )}
+          renderItem={({ item: f }) => {
+            const isActive = filter === f;
+            const clr = getFilterColors(f);
+
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.filterTab,
+                  {
+                    backgroundColor: clr.bg,
+                    borderColor: isActive ? clr.dot : 'transparent',
+                  },
+                ]}
+                onPress={() => setFilter(f)}
+              >
+                <View style={[styles.filterDot, { backgroundColor: clr.dot }]} />
+                <Text style={[styles.filterTabText, { color: clr.text }]}>
+                  {FILTER_LABELS[f]}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
 
@@ -185,7 +208,7 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AppEco.background },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
 
   filterWrap: {
     backgroundColor: AppEco.surface,
@@ -194,16 +217,16 @@ const styles = StyleSheet.create({
   },
   filterList: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterTab: {
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: AppEco.surfaceMuted,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderWidth: 1.5,
   },
-  filterTabActive: { backgroundColor: AppEco.primaryMuted, borderColor: AppEco.border },
-  filterTabText: { fontSize: 13, fontWeight: '600', color: AppEco.textSecondary },
-  filterTabTextActive: { color: AppEco.primaryDark },
+  filterDot: { width: 6, height: 6, borderRadius: 3 },
+  filterTabText: { fontSize: 13, fontWeight: '700' },
 
   listContent: { padding: 16, paddingBottom: 30 },
 

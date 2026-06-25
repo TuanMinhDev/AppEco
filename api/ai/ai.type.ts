@@ -24,3 +24,38 @@ export interface AiHealthResponse {
   nodeTS: string;
   pythonAI: unknown;
 }
+
+// ─── AI Chat ────────────────────────────────────────────────
+
+export interface AiChatProduct {
+  _id: string;
+  name: string;
+  description?: string;
+  price: number;
+  sale?: number | null;
+  image?: string | null;
+  colors?: string[];
+  sizes?: string[];
+  score: number;
+}
+
+export interface AiChatRequest {
+  message: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  products: AiChatProduct[];
+  similar: AiChatProduct[];
+  error?: string;
+}
+
+/** Local chat message (stored in component state / AsyncStorage) */
+export interface AiChatMessage {
+  id: string;
+  role: 'user' | 'ai';
+  text: string;
+  products?: AiChatProduct[];
+  similar?: AiChatProduct[];
+  createdAt: string;
+}

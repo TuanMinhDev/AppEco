@@ -24,7 +24,11 @@ export interface RefreshTokenPayload {
 
 export interface LoginResponse {
   message: string;
+  /** Alias của accessToken (tương thích code cũ) */
   token: string;
+  accessToken?: string;
+  refreshToken: string;
+  expiresIn: number;
 }
 
 export interface RegisterResponse {
@@ -37,8 +41,18 @@ export interface ChangePasswordResponse {
 
 export interface RefreshTokenResponse {
   message: string;
+  token?: string;
   accessToken: string;
   refreshToken: string;
+  expiresIn: number;
+}
+
+export interface LogoutResponse {
+  message: string;
+}
+
+export interface LogoutPayload {
+  refreshToken?: string;
 }
 
 /** @deprecated dùng RegisterPayload */

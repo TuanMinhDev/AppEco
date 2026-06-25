@@ -1,4 +1,5 @@
 import { LocationItem } from '@/api/address/vietnam-locations';
+import { vietnameseTextInputProps } from '@/components/app-input';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
@@ -99,6 +100,8 @@ export function LocationPicker({
               value={search}
               onChangeText={setSearch}
               autoFocus
+              keyboardType="default"
+              {...vietnameseTextInputProps}
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch('')}>

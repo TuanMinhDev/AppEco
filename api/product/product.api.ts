@@ -10,6 +10,8 @@ import {
   GetProductQuery,
   Product,
   ProductVariant,
+  RecordProductViewPayload,
+  RecordProductViewResponse,
 } from './product.type';
 
 const URL = '/product';
@@ -18,6 +20,7 @@ export const productUri = {
   list: `${URL}/get`,
   detail: `${URL}/:id`,
   seller: `${URL}/seller`,
+  recordView: (productId: string) => `${URL}/${productId}/view`,
 };
 
 export const productKey = {
@@ -61,6 +64,18 @@ export const productApis = {
       productUri.detail.replace(':id', id),
     );
   },
+
+  /** POST /product/:productId/view — ghi lượt xem (cần đăng nhập) */
+  recordView: (
+    productId: string,
+    payload?: RecordProductViewPayload,
+    config?: { signal?: AbortSignal },
+  ) =>
+    apiClient
+      .post<RecordProductViewResponse>(productUri.recordView(productId), {
+        source: payload?.source ?? 'detail_page',
+      }, config)
+      .then((r) => r.data),
 
   listForSeller: (params?: {
     sellerId?: string;
