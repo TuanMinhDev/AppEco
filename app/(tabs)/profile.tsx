@@ -86,6 +86,12 @@ export default function ProfileScreen() {
             sub: 'Tin nhắn khách hàng',
             onPress: () => router.push('/admin/messages' as any),
           },
+          {
+            icon: 'settings-outline',
+            label: 'Cài đặt GHTK',
+            sub: 'API Token · Shop Code',
+            onPress: () => router.push('/admin/ghtk-settings' as any),
+          },
         ]
       : [];
 

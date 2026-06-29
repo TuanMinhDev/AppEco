@@ -6,9 +6,9 @@ import {
 import { AddressType, CreateAddressPayload, IAddress } from '@/api/address/address.type';
 import {
   LocationItem,
-  useDistrictsQuery,
+  useAllWardsOfProvince,
   useProvincesQuery,
-  useWardsQuery,
+  WardWithDistrict,
 } from '@/api/address/vietnam-locations';
 import { useGetCurrentUser } from '@/api/user/user.api';
 import { LocationPicker } from '@/components/address/LocationPicker';
@@ -104,15 +104,11 @@ function AddAddressForm({ addressId, isEditMode }: { addressId?: string; isEditM
   const isAdmin = currentUser?.role === 'admin';
 
   const provinceWatch = useWatch({ control, name: 'province' });
-  const districtWatch = useWatch({ control, name: 'district' });
 
   const { data: provinces = [], isLoading: loadingProvinces } =
     useProvincesQuery();
-  const { data: districts = [], isLoading: loadingDistricts } =
-    useDistrictsQuery(provinceWatch?.code);
-  const { data: wards = [], isLoading: loadingWards } = useWardsQuery(
-    districtWatch?.code,
-  );
+  const { data: allWards = [], isLoading: loadingAllWards } =
+    useAllWardsOfProvince(provinceWatch?.code);
 
   const { mutate: createAddress, isPending: isCreating } = useCreateAddress({
     onSuccess: () => {
@@ -229,40 +225,6 @@ function AddAddressForm({ addressId, isEditMode }: { addressId?: string; isEditM
 
           <Controller
             control={control}
-            name="district"
-            rules={{
-              validate: (v) =>
-                v?.name ? true : 'Vui lòng chọn quận/huyện để chọn phường/xã',
-            }}
-            render={({ field: { value } }) => (
-              <>
-                <LocationPicker
-                  label="Quận / Huyện"
-                  placeholder={
-                    provinceWatch
-                      ? 'Chọn quận / huyện'
-                      : 'Chọn tỉnh/thành trước'
-                  }
-                  value={value?.name ?? ''}
-                  items={districts}
-                  loading={loadingDistricts}
-                  disabled={!provinceWatch || loadingDistricts}
-                  onSelect={(item) => {
-                    setValue('district', item, { shouldValidate: true });
-                    setValue('ward', null);
-                  }}
-                />
-                {errors.district?.message ? (
-                  <Text style={[styles.errorText, styles.pickerError]}>
-                    {errors.district.message}
-                  </Text>
-                ) : null}
-              </>
-            )}
-          />
-
-          <Controller
-            control={control}
             name="ward"
             rules={{
               validate: (v) => (v?.name ? true : 'Vui lòng chọn phường/xã'),
@@ -272,17 +234,27 @@ function AddAddressForm({ addressId, isEditMode }: { addressId?: string; isEditM
                 <LocationPicker
                   label="Phường / Xã"
                   placeholder={
-                    districtWatch
+                    provinceWatch
                       ? 'Chọn phường / xã'
-                      : 'Chọn quận/huyện trước'
+                      : 'Chọn tỉnh/thành trước'
                   }
                   value={value?.name ?? ''}
-                  items={wards}
-                  loading={loadingWards}
-                  disabled={!districtWatch || loadingWards}
-                  onSelect={(item) =>
-                    setValue('ward', item, { shouldValidate: true })
-                  }
+                  items={allWards.map((w) => ({
+                    code: w.code,
+                    name: w.name,
+                    _original: w,
+                  })) as any}
+                  loading={loadingAllWards}
+                  disabled={!provinceWatch || loadingAllWards}
+                  onSelect={(item: any) => {
+                    const original: WardWithDistrict | undefined = item._original;
+                    if (original) {
+                      setValue('ward', { code: original.code, name: original.name } as LocationItem, { shouldValidate: true });
+                      setValue('district', original.district, { shouldValidate: true });
+                    } else {
+                      setValue('ward', item, { shouldValidate: true });
+                    }
+                  }}
                 />
                 {errors.ward?.message ? (
                   <Text style={[styles.errorText, styles.pickerError]}>
@@ -450,11 +422,9 @@ export default function AddAddressScreen() {
   const { data: provinces = [] } = useProvincesQuery();
 
   const provinceCode = watch('province')?.code;
-  const districtCode = watch('district')?.code;
-  const { data: districts = [] } = useDistrictsQuery(provinceCode);
-  const { data: wards = [] } = useWardsQuery(districtCode);
+  const { data: allWards = [] } = useAllWardsOfProvince(provinceCode);
 
-  const hydrateStep = useRef<'idle' | 'province' | 'district' | 'done'>('idle');
+  const hydrateStep = useRef<'idle' | 'province' | 'done'>('idle');
 
   useEffect(() => {
     hydrateStep.current = 'idle';
@@ -480,38 +450,26 @@ export default function AddAddressScreen() {
     hydrateStep.current = 'province';
   }, [isEditMode, detail, provinces, reset]);
 
+  // Hydrate ward + district từ allWards
   useEffect(() => {
     if (
       !isEditMode ||
       !detail ||
-      districts.length === 0 ||
+      allWards.length === 0 ||
       hydrateStep.current !== 'province'
     )
       return;
-    if (detail.district) {
-      const d = districts.find(
-        (x) =>
-          x.name.toLowerCase() === String(detail.district).toLowerCase(),
+    if (detail.ward) {
+      const w = allWards.find(
+        (x) => x.name.toLowerCase() === detail.ward?.toLowerCase(),
       );
-      if (d) setValue('district', d);
+      if (w) {
+        setValue('ward', { code: w.code, name: w.name });
+        setValue('district', w.district);
+      }
     }
-    hydrateStep.current = 'district';
-  }, [isEditMode, detail, districts, setValue]);
-
-  useEffect(() => {
-    if (
-      !isEditMode ||
-      !detail ||
-      wards.length === 0 ||
-      hydrateStep.current !== 'district'
-    )
-      return;
-    const w = wards.find(
-      (x) => x.name.toLowerCase() === detail.ward?.toLowerCase(),
-    );
-    if (w) setValue('ward', w);
     hydrateStep.current = 'done';
-  }, [isEditMode, detail, wards, setValue]);
+  }, [isEditMode, detail, allWards, setValue]);
 
   return (
     <View style={styles.root}>

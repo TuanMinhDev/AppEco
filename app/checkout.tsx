@@ -3,14 +3,12 @@ import type { AddressType } from '@/api/address/address.type';
 import {
   invalidateQueriesAfterOrderCreated,
   orderApis,
-  useShippingOptions,
 } from '@/api/order/order.api';
-import type { CreateOrderBody, ShippingMethod } from '@/api/order/order.type';
+import type { CreateOrderBody } from '@/api/order/order.type';
 import {
-  getShippingOptionRows,
-  isMultiShippingResponse,
   toShippingAddress,
 } from '@/api/order/order.utils';
+import { useGhtkShippingFee } from '@/api/shipping/shipping.api';
 import { useGetCurrentUser } from '@/api/user/user.api';
 import { ScreenHero } from '@/components/screen-hero/ScreenHero';
 import { useToast } from '@/components/toast/ToastProvider';
@@ -65,10 +63,11 @@ const PAYMENT_METHODS = [
   { id: 'bank_transfer', label: 'Chuyển khoản ngân hàng', icon: 'business-outline' as const, description: 'Internet Banking' },
 ];
 
-const SHIP_METHOD_ICON: Record<string, 'cube-outline' | 'flash-outline' | 'rocket-outline'> = {
+const SHIP_METHOD_ICON: Record<string, 'cube-outline' | 'flash-outline' | 'rocket-outline' | 'storefront-outline'> = {
   economy: 'cube-outline',
   fast: 'flash-outline',
   express: 'rocket-outline',
+  pickup: 'storefront-outline',
 };
 
 type CheckoutFormValues = {
@@ -99,6 +98,7 @@ function CheckoutScreenInner() {
   const { data: user } = useGetCurrentUser();
 
   const [selectedShipping, setSelectedShipping] = useState<string>('');
+  const isPickup = selectedShipping === 'pickup';
   const [placing, setPlacing] = useState(false);
 
   const { data: addressesData, isLoading: addressLoading } = useListAddress();
@@ -106,24 +106,39 @@ function CheckoutScreenInner() {
   const defaultAddress = addresses.find((a) => a.isDefault);
   const hasAddresses = addresses.length > 0;
 
-  const productIds = useMemo(
-    () => items.map((i) => i.productId._id).filter(Boolean),
-    [items]
-  );
+  // GHTK shipping fee
+  const ghtkFeeParams = useMemo(() => {
+    if (!shippingInfo.province || !shippingInfo.ward) return null;
+    // Tìm seller ID từ items
+    const sellerIds = [...new Set(items.map((i) => i.sellerId).filter(Boolean))];
+    if (sellerIds.length !== 1) return null; // chỉ hỗ trợ 1 seller
+    return {
+      sellerId: sellerIds[0],
+      province: shippingInfo.province,
+      district: shippingInfo.district || '',
+      ward: shippingInfo.ward,
+    };
+  }, [shippingInfo.province, shippingInfo.district, shippingInfo.ward, items]);
 
   const {
-    data: shipRes,
+    data: ghtkFeeData,
     isLoading: shipLoading,
     isError: shipError,
     error: shipErr,
-  } = useShippingOptions(shippingInfo.addressId, productIds);
+  } = useGhtkShippingFee(
+    {
+      pick_province: '', // Server sẽ tự lấy từ seller address
+      province: ghtkFeeParams?.province || '',
+      district: ghtkFeeParams?.district,
+      ward: ghtkFeeParams?.ward,
+      weight: 500, // Default 500g
+      sellerId: ghtkFeeParams?.sellerId,
+    } as any,
+    !!ghtkFeeParams && !!shippingInfo.addressId,
+  );
 
-  const shipData = shipRes?.data;
-  const optionRows = useMemo(() => getShippingOptionRows(shipData), [shipData]);
-
-  const expressReason = isMultiShippingResponse(shipData)
-    ? shipData.expressUnavailableReason
-    : undefined;
+  // ghtkFeeData = GhtkShippingFeeResponse { success, data: { fee, ... } }
+  const ghtkFee: number = (ghtkFeeData as any)?.data?.fee ?? (ghtkFeeData as any)?.fee ?? 0;
 
   const shipErrorMessage =
     shipErr && typeof shipErr === 'object' && 'response' in shipErr
@@ -131,20 +146,23 @@ function CheckoutScreenInner() {
       : '';
 
   useEffect(() => {
-    if (!optionRows.length) {
+    if (isPickup) {
       dispatch(setShippingFee(0));
       return;
     }
-    const row = optionRows.find((o) => o.method === selectedShipping);
-    dispatch(setShippingFee(row?.fee ?? 0));
-  }, [optionRows, selectedShipping, dispatch]);
-
-  useEffect(() => {
-    if (!optionRows.length) return;
-    if (!optionRows.some((o) => o.method === selectedShipping)) {
-      setSelectedShipping(String(optionRows[0].method));
+    if (selectedShipping === 'ghtk' && ghtkFee > 0) {
+      dispatch(setShippingFee(ghtkFee));
+      return;
     }
-  }, [optionRows, selectedShipping]);
+    dispatch(setShippingFee(0));
+  }, [selectedShipping, isPickup, ghtkFee, dispatch]);
+
+  // Auto-select pickup if no address selected yet
+  useEffect(() => {
+    if (!selectedShipping) {
+      setSelectedShipping('pickup');
+    }
+  }, []);
 
   // Gán địa chỉ mặc định chỉ khi chưa chọn addressId (tránh ghi đè sau khi user chọn từ danh sách)
   useEffect(() => {
@@ -200,8 +218,12 @@ function CheckoutScreenInner() {
       toast.showError('Giỏ hàng trống, không thể đặt hàng');
       return;
     }
-    if (!optionRows.length || !selectedShipping) {
-      toast.showError('Chưa có phương án giao hàng. Kiểm tra địa chỉ và thử lại.');
+    if (!isPickup && !selectedShipping) {
+      toast.showError('Vui lòng chọn phương thức vận chuyển.');
+      return;
+    }
+    if (selectedShipping === 'ghtk' && shipError) {
+      toast.showError('Không tính được phí ship. Kiểm tra địa chỉ và thử lại.');
       return;
     }
 
@@ -213,7 +235,7 @@ function CheckoutScreenInner() {
       return;
     }
 
-    const methodOk = ['economy', 'fast', 'express'].includes(selectedShipping);
+    const methodOk = ['economy', 'fast', 'express', 'ghtk', 'pickup'].includes(selectedShipping);
     if (!methodOk) {
       toast.showError('Phương thức vận chuyển không hợp lệ.');
       return;
@@ -242,10 +264,7 @@ function CheckoutScreenInner() {
       bySeller.set(sid, cur);
     }
 
-    if (bySeller.size > 1 && selectedShipping === 'express') {
-      toast.showError('Hỏa tốc không áp dụng khi giỏ có nhiều cửa hàng. Chọn tiết kiệm hoặc nhanh.');
-      return;
-    }
+
 
     try {
       dispatch(setProcessing(true));
@@ -272,7 +291,8 @@ function CheckoutScreenInner() {
             price: item.price,
           })),
           ...(cartItemIds.length > 0 ? { cartItemIds } : {}),
-          shippingMethod: selectedShipping as ShippingMethod,
+          shippingMethod: selectedShipping as any,
+          shippingFee: isPickup ? 0 : ghtkFee,
           shippingAddress: snap,
           notes: getValues('notes')?.trim() || undefined,
         };
@@ -432,65 +452,85 @@ function CheckoutScreenInner() {
               <Ionicons name="bicycle-outline" size={18} color={AppEco.primary} />
               <Text style={styles.sectionTitle}>Phương thức vận chuyển</Text>
             </View>
-            {!shippingInfo.addressId ? (
-              <Text style={styles.shipHint}>
-                Chọn địa chỉ từ danh sách để xem phí và phương án giao hàng.
-              </Text>
-            ) : null}
-            {shippingInfo.addressId && shipLoading ? (
-              <View style={styles.addressLoadingWrap}>
-                <ActivityIndicator size="small" color={AppEco.primary} />
-                <Text style={styles.addressLoadingText}>Đang tính phí vận chuyển...</Text>
-              </View>
-            ) : null}
-            {shippingInfo.addressId && shipError ? (
-              <Text style={styles.shipErrorText}>
-                {shipErrorMessage || 'Không lấy được phương án giao hàng. Thử đổi địa chỉ hoặc kiểm tra sản phẩm.'}
-              </Text>
-            ) : null}
-            {expressReason ? (
-              <View style={styles.expressReasonBox}>
-                <Ionicons name="information-circle-outline" size={16} color={AppEco.primaryDark} />
-                <Text style={styles.expressReasonText}>{expressReason}</Text>
-              </View>
-            ) : null}
-            {shippingInfo.addressId && !shipLoading && !shipError && optionRows.length === 0 ? (
-              <Text style={styles.shipHint}>Không có phương án phù hợp cho giỏ hàng và địa chỉ này.</Text>
-            ) : null}
-            {optionRows.map((row) => {
-              const selected = selectedShipping === row.method;
-              const icon = SHIP_METHOD_ICON[row.method] ?? 'cube-outline';
+
+            {/* --- Nhận tại kho --- */}
+            {(() => {
+              const selected = selectedShipping === 'pickup';
               return (
                 <TouchableOpacity
-                  key={row.method}
                   style={[styles.shippingMethod, selected && styles.shippingMethodSelected]}
-                  onPress={() => setSelectedShipping(String(row.method))}
+                  onPress={() => setSelectedShipping('pickup')}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.shippingIconWrap, selected && styles.shippingIconWrapSelected]}>
-                    <Ionicons name={icon} size={20} color={selected ? AppEco.primary : AppEco.textSecondary} />
+                    <Ionicons name="storefront-outline" size={20} color={selected ? AppEco.primary : AppEco.textSecondary} />
                   </View>
-
                   <View style={styles.shippingInfo}>
                     <View style={styles.shippingLabelRow}>
                       <Text style={[styles.shippingLabel, selected && styles.shippingLabelSelected]}>
-                        {row.label}
+                        Nhận tại kho
                       </Text>
                     </View>
-                    <Text style={styles.shippingDesc}>{row.estimatedDays}</Text>
-                    {row.note ? <Text style={styles.shippingNote}>{row.note}</Text> : null}
+                    <Text style={styles.shippingDesc}>Đến lấy hàng tại cửa hàng</Text>
                   </View>
-
-                  <Text style={[styles.shippingFeeText, selected && styles.shippingFeeTextSelected]}>
-                    {row.fee.toLocaleString('vi-VN')}đ
+                  <Text style={[styles.shippingFeeText, selected && styles.shippingFeeTextSelected, { color: AppEco.success }]}>
+                    Miễn phí
                   </Text>
-
                   <View style={[styles.radio, selected && styles.radioSelected]}>
                     {selected && <View style={styles.radioInner} />}
                   </View>
                 </TouchableOpacity>
               );
-            })}
+            })()}
+
+            {/* --- Giao hàng GHTK --- */}
+            {(() => {
+              const selected = selectedShipping === 'ghtk';
+              const hasAddress = !!shippingInfo.addressId;
+              return (
+                <TouchableOpacity
+                  style={[styles.shippingMethod, selected && styles.shippingMethodSelected]}
+                  onPress={() => setSelectedShipping('ghtk')}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.shippingIconWrap, selected && styles.shippingIconWrapSelected]}>
+                    <Ionicons name="car-outline" size={20} color={selected ? AppEco.primary : AppEco.textSecondary} />
+                  </View>
+                  <View style={styles.shippingInfo}>
+                    <View style={styles.shippingLabelRow}>
+                      <Text style={[styles.shippingLabel, selected && styles.shippingLabelSelected]}>
+                        Giao hàng tiết kiệm
+                      </Text>
+                    </View>
+                    <Text style={styles.shippingDesc}>
+                      {!hasAddress
+                        ? 'Chọn địa chỉ để tính phí'
+                        : shipLoading
+                          ? 'Đang tính phí...'
+                          : shipError
+                            ? shipErrorMessage || 'Không tính được phí'
+                            : '2-5 ngày làm việc'}
+                    </Text>
+                  </View>
+                  {shipLoading && selected ? (
+                    <ActivityIndicator size="small" color={AppEco.primary} />
+                  ) : (
+                    <Text style={[styles.shippingFeeText, selected && styles.shippingFeeTextSelected]}>
+                      {!hasAddress || shipLoading
+                        ? '—'
+                        : shipError
+                          ? '—'
+                          : ghtkFee > 0
+                            ? ghtkFee.toLocaleString('vi-VN') + 'đ'
+                            : '—'}
+                    </Text>
+                  )}
+                  <View style={[styles.radio, selected && styles.radioSelected]}>
+                    {selected && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
 
           {/* --- Phương thức thanh toán --- */}
@@ -592,18 +632,16 @@ function CheckoutScreenInner() {
               styles.placeOrderBtn,
               (placing ||
                 !shippingInfo.addressId ||
-                !optionRows.length ||
                 !selectedShipping ||
-                shipError) &&
+                (selectedShipping === 'ghtk' && (shipError || shipLoading))) &&
                 styles.placeOrderBtnDisabled,
             ]}
             onPress={handlePlaceOrder}
             disabled={
               placing ||
               !shippingInfo.addressId ||
-              !optionRows.length ||
               !selectedShipping ||
-              shipError
+              (selectedShipping === 'ghtk' && (shipError || shipLoading))
             }
             activeOpacity={0.85}
           >

@@ -7,15 +7,26 @@ import type {
   OrderShippingAddressSnapshot,
   OrderStatus,
 } from '@/api/order/order.type';
+import {
+  useCreateShipment,
+  useCancelShipment,
+  useShipmentStatus,
+} from '@/api/shipping/shipping.api';
 import { useGetCurrentUser } from '@/api/user/user.api';
 import { useAppDialog } from '@/components/app-dialog/AppDialogProvider';
 import { useToast } from '@/components/toast/ToastProvider';
+import {
+  getShippingStatusLabel,
+  getShippingStatusColor,
+  resolveGhtkTrackingUrl,
+} from '@/utils/ghtk.utils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -91,6 +102,32 @@ export default function AdminSellerOrderDetailScreen() {
     useSellerOrderDetail(id, !!id && isAdmin);
   const order = payload?.order;
 
+  // ── GHTK Shipment ─────────────────────────────────────────────────
+  const { data: shipmentData } = useShipmentStatus(id, !!order);
+
+  const createShipment = useCreateShipment({
+    onSuccess: (data) => {
+      void refetch();
+      toast.showSuccess(
+        `Đăng đơn GHTK thành công!\nMã vận đơn: ${data.shipment.trackingNumber}`,
+        { duration: 3000 },
+      );
+    },
+    onError: (e) => {
+      toast.showError(getApiErrorMessage(e, 'Không đăng được đơn GHTK.'));
+    },
+  });
+
+  const cancelShipment = useCancelShipment({
+    onSuccess: () => {
+      void refetch();
+      toast.showSuccess('Đã hủy vận đơn GHTK.', { duration: 2000 });
+    },
+    onError: (e) => {
+      toast.showError(getApiErrorMessage(e, 'Không hủy được vận đơn.'));
+    },
+  });
+
   const updateStatus = useUpdateOrderStatus({
     onSuccess: () => {
       void refetch();
@@ -101,7 +138,10 @@ export default function AdminSellerOrderDetailScreen() {
     },
   });
 
-  const busy = updateStatus.isPending;
+  const busy =
+    updateStatus.isPending ||
+    createShipment.isPending ||
+    cancelShipment.isPending;
 
   const confirmStatus = (next: OrderStatus, title: string, body: string) => {
     dialog.showConfirm({
@@ -110,6 +150,33 @@ export default function AdminSellerOrderDetailScreen() {
       confirmText: 'Xác nhận',
       onConfirm: () => updateStatus.mutate({ id, status: next }),
     });
+  };
+
+  const confirmCreateShipment = () => {
+    dialog.showConfirm({
+      title: 'Đăng đơn GHTK',
+      message: 'Tạo vận đơn giao hàng qua GHTK? Đơn sẽ chuyển sang trạng thái đang giao.',
+      confirmText: 'Đăng đơn',
+      onConfirm: () => createShipment.mutate({ orderId: id }),
+    });
+  };
+
+  const confirmCancelShipment = () => {
+    dialog.showConfirm({
+      title: 'Hủy vận đơn GHTK',
+      message: 'Hủy vận đơn đã tạo trên GHTK? Đơn hàng sẽ bị hủy.',
+      confirmText: 'Hủy vận đơn',
+      onConfirm: () => cancelShipment.mutate({ orderId: id }),
+    });
+  };
+
+  const handleOpenTracking = () => {
+    const shipment = shipmentData?.shipment;
+    if (!shipment) return;
+    const url = resolveGhtkTrackingUrl(shipment);
+    if (url) {
+      void Linking.openURL(url);
+    }
   };
 
   const errMsg =
@@ -171,6 +238,11 @@ export default function AdminSellerOrderDetailScreen() {
       ]
     : [];
 
+  // Shipment info
+  const shipment = shipmentData?.shipment;
+  const hasShipment = !!shipment?.trackingNumber;
+  const shipmentStatus = shipment?.status;
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
@@ -189,6 +261,73 @@ export default function AdminSellerOrderDetailScreen() {
             {new Date(order.createdAt).toLocaleString('vi-VN')}
           </Text>
         </View>
+
+        {/* ── GHTK Shipping Card ──────────────────────────────────── */}
+        {hasShipment ? (
+          <View style={styles.card}>
+            <View style={styles.ghtkHeader}>
+              <MaterialCommunityIcons name="truck-delivery" size={20} color="#2563EB" />
+              <Text style={styles.cardTitle}>Vận chuyển GHTK</Text>
+            </View>
+
+            <View style={styles.ghtkRow}>
+              <Text style={styles.ghtkLabel}>Mã vận đơn</Text>
+              <Text style={styles.ghtkValue}>{shipment?.trackingNumber}</Text>
+            </View>
+
+            <View style={styles.ghtkRow}>
+              <Text style={styles.ghtkLabel}>Trạng thái</Text>
+              <View
+                style={[
+                  styles.ghtkStatusBadge,
+                  { backgroundColor: getShippingStatusColor(shipmentStatus) + '18' },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.ghtkStatusDot,
+                    { backgroundColor: getShippingStatusColor(shipmentStatus) },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.ghtkStatusText,
+                    { color: getShippingStatusColor(shipmentStatus) },
+                  ]}
+                >
+                  {getShippingStatusLabel(shipmentStatus ?? null)}
+                </Text>
+              </View>
+            </View>
+
+            {shipment?.shippingFee ? (
+              <View style={styles.ghtkRow}>
+                <Text style={styles.ghtkLabel}>Phí vận chuyển</Text>
+                <Text style={styles.ghtkValue}>
+                  {formatPrice(shipment.shippingFee)}
+                </Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity style={styles.ghtkTrackBtn} onPress={handleOpenTracking}>
+              <Ionicons name="location-outline" size={18} color="#2563EB" />
+              <Text style={styles.ghtkTrackTxt}>Tra cứu vận đơn</Text>
+              <Ionicons name="open-outline" size={16} color="#2563EB" />
+            </TouchableOpacity>
+
+            {/* Hủy vận đơn — chỉ khi đang pending hoặc chưa lấy hàng */}
+            {shipmentStatus === 'pending' || shipmentStatus === 'delay_pickup' ? (
+              <TouchableOpacity
+                style={[styles.ghtkCancelBtn, busy && styles.dis]}
+                disabled={busy}
+                onPress={confirmCancelShipment}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                <Text style={styles.ghtkCancelTxt}>Hủy vận đơn</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Khách mua</Text>
@@ -243,22 +382,43 @@ export default function AdminSellerOrderDetailScreen() {
           </View>
         </View>
 
+        {/* ── Actions khi pending ──────────────────────────────────── */}
         {statusKey === 'pending' ? (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.actionPrimary, busy && styles.dis]}
-              disabled={busy}
-              onPress={() =>
-                confirmStatus(
-                  'shipping',
-                  'Xác nhận đơn',
-                  'Chuyển đơn sang trạng thái đang giao?',
-                )
-              }
-            >
-              <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
-              <Text style={styles.actionPrimaryTxt}>Xác nhận — Đang giao</Text>
-            </TouchableOpacity>
+            {/* Nút đăng đơn GHTK — ưu tiên hiện trước */}
+            {!hasShipment ? (
+              <TouchableOpacity
+                style={[styles.actionGhtk, busy && styles.dis]}
+                disabled={busy}
+                onPress={confirmCreateShipment}
+              >
+                {createShipment.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <MaterialCommunityIcons name="truck-fast-outline" size={22} color="#fff" />
+                )}
+                <Text style={styles.actionGhtkTxt}>Đăng đơn GHTK</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Xác nhận thủ công (không qua GHTK) */}
+            {!hasShipment ? (
+              <TouchableOpacity
+                style={[styles.actionSecondary, busy && styles.dis]}
+                disabled={busy}
+                onPress={() =>
+                  confirmStatus(
+                    'shipping',
+                    'Giao thủ công',
+                    'Xác nhận giao thủ công (không qua GHTK)?',
+                  )
+                }
+              >
+                <Ionicons name="checkmark-circle-outline" size={22} color="#2563EB" />
+                <Text style={styles.actionSecondaryTxt}>Giao thủ công</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.actionDanger, busy && styles.dis]}
               disabled={busy}
@@ -278,30 +438,42 @@ export default function AdminSellerOrderDetailScreen() {
 
         {statusKey === 'shipping' ? (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.actionPrimary, busy && styles.dis]}
-              disabled={busy}
-              onPress={() =>
-                confirmStatus(
-                  'delivered',
-                  'Hoàn tất',
-                  'Xác nhận đơn đã giao cho khách?',
-                )
-              }
-            >
-              <Ionicons name="bag-check-outline" size={22} color="#fff" />
-              <Text style={styles.actionPrimaryTxt}>Đã giao hàng</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionDanger, busy && styles.dis]}
-              disabled={busy}
-              onPress={() =>
-                confirmStatus('cancelled', 'Huỷ đơn', 'Huỷ đơn đang giao?')
-              }
-            >
-              <Ionicons name="close-circle-outline" size={22} color="#fff" />
-              <Text style={styles.actionDangerTxt}>Huỷ đơn</Text>
-            </TouchableOpacity>
+            {!hasShipment ? (
+              <TouchableOpacity
+                style={[styles.actionPrimary, busy && styles.dis]}
+                disabled={busy}
+                onPress={() =>
+                  confirmStatus(
+                    'delivered',
+                    'Hoàn tất',
+                    'Xác nhận đơn đã giao cho khách?',
+                  )
+                }
+              >
+                <Ionicons name="bag-check-outline" size={22} color="#fff" />
+                <Text style={styles.actionPrimaryTxt}>Đã giao hàng</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {!hasShipment ? (
+              <TouchableOpacity
+                style={[styles.actionDanger, busy && styles.dis]}
+                disabled={busy}
+                onPress={() =>
+                  confirmStatus('cancelled', 'Huỷ đơn', 'Huỷ đơn đang giao?')
+                }
+              >
+                <Ionicons name="close-circle-outline" size={22} color="#fff" />
+                <Text style={styles.actionDangerTxt}>Huỷ đơn</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Khi có GHTK shipment → hiện ghi chú GHTK tự cập nhật */}
+            {hasShipment ? (
+              <Text style={styles.ghtkNote}>
+                Đơn đang giao qua GHTK. Trạng thái sẽ được cập nhật tự động qua webhook.
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -384,6 +556,33 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 16, fontWeight: '800' },
   totalVal: { fontSize: 20, fontWeight: '900', color: '#2563EB' },
   actions: { gap: 12, marginTop: 8 },
+
+  // ── Nút đăng đơn GHTK ──────────────────────────────────────────
+  actionGhtk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  actionGhtkTxt: { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+  // ── Nút giao thủ công (secondary) ──────────────────────────────
+  actionSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  actionSecondaryTxt: { color: '#2563EB', fontSize: 16, fontWeight: '800' },
+
   actionPrimary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,4 +613,79 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   primaryBtnTxt: { color: '#fff', fontWeight: '800' },
+
+  // ── GHTK Card styles ──────────────────────────────────────────
+  ghtkHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  ghtkRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  ghtkLabel: { fontSize: 14, color: '#64748B' },
+  ghtkValue: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  ghtkStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  ghtkStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  ghtkStatusText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  ghtkTrackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+  },
+  ghtkTrackTxt: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  ghtkCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
+  },
+  ghtkCancelTxt: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  ghtkNote: {
+    textAlign: 'center',
+    color: '#059669',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginTop: 4,
+    paddingHorizontal: 8,
+  },
 });

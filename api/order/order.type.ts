@@ -6,7 +6,7 @@ export type OrderStatus =
   | 'cancelled'
   | string;
 
-export type ShippingMethod = 'economy' | 'fast' | 'express';
+export type ShippingMethod = 'economy' | 'fast' | 'express' | 'ghtk' | 'pickup';
 
 export interface OrderItemVariant {
   color: string;
@@ -59,6 +59,8 @@ export interface CreateOrderBody {
   cartItemIds?: string[];
   shippingAddress: OrderShippingAddressSnapshot;
   shippingMethod: ShippingMethod;
+  /** Phí ship từ GHTK hoặc 0 (pickup). Server xác nhận lại. */
+  shippingFee?: number;
   notes?: string;
 }
 
@@ -80,6 +82,15 @@ export interface Order {
   shippingAddress: OrderShippingAddressSnapshot | Record<string, unknown>;
   notes?: string;
   status: OrderStatus;
+  /** Trạng thái vận chuyển chi tiết từ GHTK (pending, in_transit, delivered, ...) */
+  shippingStatus?: string | null;
+  /** Thông tin vận đơn GHTK (nếu có) */
+  shipment?: {
+    trackingNumber: string | null;
+    trackingUrl: string | null;
+    status: string;
+    shippingFee?: number;
+  } | null;
   createdAt: string;
   updatedAt?: string;
   /** Có thể có từ bản API cũ */

@@ -59,3 +59,33 @@ export function useWardsQuery(districtCode: number | null | undefined) {
     enabled: typeof districtCode === 'number' && districtCode > 0,
   });
 }
+
+/** Lấy TẤT CẢ phường/xã của 1 tỉnh (gộp qua tất cả quận/huyện) */
+export interface WardWithDistrict extends LocationItem {
+  district: LocationItem;
+}
+
+export function useAllWardsOfProvince(provinceCode: number | null | undefined) {
+  return useQuery({
+    queryKey: ['vietnam-locations', 'all-wards', provinceCode ?? 0],
+    queryFn: async (): Promise<WardWithDistrict[]> => {
+      const districts = await fetchDistricts(provinceCode!);
+      const results: WardWithDistrict[] = [];
+      // Fetch all wards in parallel
+      const wardsPerDistrict = await Promise.all(
+        districts.map(async (d) => {
+          const wards = await fetchWards(d.code);
+          return { district: d, wards };
+        }),
+      );
+      for (const { district, wards } of wardsPerDistrict) {
+        for (const w of wards) {
+          results.push({ ...w, district });
+        }
+      }
+      return results;
+    },
+    enabled: typeof provinceCode === 'number' && provinceCode > 0,
+    staleTime: 1000 * 60 * 60 * 24, // Cache 24h
+  });
+}

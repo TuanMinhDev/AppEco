@@ -3,9 +3,10 @@ import { GetProductQuery } from '@/api/product/product.type';
 import { AppInput } from '@/components/app-input';
 import { ProductItem } from '@/components/commom/ProductItem';
 import { AppEco } from '@/constants/theme';
+import { searchLogApis } from '@/api/product/search.api';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import {
     Dimensions,
@@ -42,6 +43,24 @@ export default function SearchScreen() {
 
     const { data: dataProduct } = useListProduct({ name, pageNumber, pageSize, minPrice, maxPrice });
     const products = dataProduct?.data?.items ?? [];
+
+    // Ghi search log khi user tìm kiếm (trọng số hành vi search = 2)
+    useEffect(() => {
+        const keyword = name?.trim();
+        if (!keyword || products.length === 0) return;
+
+        const timer = setTimeout(() => {
+            const resultProductIds = products
+                .slice(0, 10)
+                .map((p: any) => p._id)
+                .filter(Boolean);
+            searchLogApis
+                .recordSearchLog({ keyword, resultProductIds })
+                .catch(() => {}); // không block UI nếu tracking lỗi
+        }, 500); // debounce 500ms tránh gọi quá nhiều
+
+        return () => clearTimeout(timer);
+    }, [name, products.length]);
 
     return (
         <FormProvider {...methods}>
